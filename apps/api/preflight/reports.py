@@ -31,7 +31,7 @@ class PolicyInput(Name):
 
 
 @router.post("/projects/{project_id}/policies", status_code=201)
-async def create_policy(project_id: str, body: PolicyInput, user=Depends(current_user), db=Depends(get_db)):
+def create_policy(project_id: str, body: PolicyInput, user=Depends(current_user), db=Depends(get_db)):
     _, org = project_access(db, user, project_id, "admin")
     existing = db.scalar(select(func.max(ReleasePolicy.version)).where(ReleasePolicy.project_id == project_id, ReleasePolicy.name == body.name)) or 0
     policy = ReleasePolicy(project_id=project_id, name=body.name, version=existing+1, config=body.config.model_dump())
@@ -43,13 +43,13 @@ async def create_policy(project_id: str, body: PolicyInput, user=Depends(current
 
 
 @router.get("/projects/{project_id}/policies")
-async def policies(project_id: str, user=Depends(current_user), db=Depends(get_db)):
+def policies(project_id: str, user=Depends(current_user), db=Depends(get_db)):
     project_access(db, user, project_id)
     return [{"id": p.id, "name": p.name, "version": p.version, "config": p.config} for p in db.scalars(select(ReleasePolicy).where(ReleasePolicy.project_id == project_id).order_by(ReleasePolicy.version.desc()).limit(100))]
 
 
 @router.get("/comparisons")
-async def comparison(baseline: str, candidate: str, user=Depends(current_user), db=Depends(get_db)):
+def comparison(baseline: str, candidate: str, user=Depends(current_user), db=Depends(get_db)):
     left, _ = run_access(db, user, baseline)
     right, _ = run_access(db, user, candidate)
     if left.project_id != right.project_id:
@@ -58,7 +58,7 @@ async def comparison(baseline: str, candidate: str, user=Depends(current_user), 
 
 
 @router.post("/runs/{run_id}/release")
-async def gate(run_id: str, body: dict, user=Depends(current_user), db=Depends(get_db)):
+def gate(run_id: str, body: dict, user=Depends(current_user), db=Depends(get_db)):
     run, org = run_access(db, user, run_id, "developer")
     policy = None
     if body.get("policy_id"):
@@ -115,13 +115,13 @@ def report_data(run, db):
 
 
 @router.get("/runs/{run_id}/report.json")
-async def report_json(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def report_json(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run, _ = run_access(db, user, run_id)
     return Response(json.dumps(report_data(run, db), indent=2), media_type="application/json", headers={"Content-Disposition": f'attachment; filename="preflight-{run.id}.json"'})
 
 
 @router.get("/runs/{run_id}/report.html", response_class=HTMLResponse)
-async def report_html(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def report_html(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run, _ = run_access(db, user, run_id)
     data = report_data(run, db)
     rows = "".join(f'<tr><th scope="row">{html.escape(a["scenario_id"])}</th><td>{a["trial"]}</td><td>{"INFRASTRUCTURE" if a["result"].get("kind") == "infrastructure" else "PASSED" if a["result"]["assessment"]["task_success"] else "FAILED"}</td></tr>' for a in data["attempts"])
@@ -130,7 +130,7 @@ async def report_html(run_id: str, user=Depends(current_user), db=Depends(get_db
 
 
 @router.post("/runs/{run_id}/artifacts", status_code=201)
-async def persist_report(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def persist_report(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run, org = run_access(db, user, run_id, "developer")
     from .storage import LocalStore
     try:
@@ -146,13 +146,13 @@ async def persist_report(run_id: str, user=Depends(current_user), db=Depends(get
 
 
 @router.get("/runs/{run_id}/artifacts")
-async def artifact_list(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def artifact_list(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run_access(db, user, run_id)
     return [{"id": a.id, "run_id": run_id, **a.payload} for a in db.scalars(select(Artifact).where(Artifact.run_id == run_id))]
 
 
 @router.get("/artifacts/{artifact_id}")
-async def download_artifact(artifact_id: str, user=Depends(current_user), db=Depends(get_db)):
+def download_artifact(artifact_id: str, user=Depends(current_user), db=Depends(get_db)):
     artifact = db.get(Artifact, artifact_id)
     if not artifact:
         raise HTTPException(404, "Artifact not found")

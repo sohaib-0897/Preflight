@@ -1,3 +1,21 @@
+## Platform phase 3 — durable orchestration (local verification)
+
+Redis/ARQ integration, concurrent durable claims, reconciliation, native lease
+recovery, cancellation-aware container lifecycle, bounded shutdown and safe handling
+of ambiguous remote side effects are implemented. Compose uses the ARQ worker and
+Redis dependencies. Actual queue smoke verified two concurrent evaluations with 32
+persisted attempts, duplicate rejection, and cancellation without execution. Local
+backend: 50 passed; Next browser: six passed; frontend unit/type checks passed.
+Compose config validates locally. New live container cancellation check awaits CI.
+
+Async SQLAlchemy readiness/dispatch use real drivers; retained synchronous services
+run in FastAPI threads. Full async service conversion remains partial. Local Docker
+socket remains permission denied; no host permissions changed. See JOBS.md.
+
+## Phase 2 remote confirmation
+
+Commit `45068452c06a8e2061fe0ab6dbb2a6e581ac9d0b`: [Actions 38178902913](https://github.com/sohaib-0897/Preflight/actions/runs/38178902913) SUCCESS. 61 Python tests including 14 live Docker checks; Compose PostgreSQL/Redis health, additive migration without drift and durable worker; six Chromium checks; four React unit checks; three actual framework jobs, eight scenarios each. No hosted inference called.
+
 ## Platform phase 2 — executable connections (local verification)
 
 Implemented HTTP/SDK gateways, actual LangGraph/CrewAI/OpenAI Agents runtimes,

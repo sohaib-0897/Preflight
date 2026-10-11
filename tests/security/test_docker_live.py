@@ -97,3 +97,19 @@ def test_live_concurrent_execution_and_cleanup():
         results = list(pool.map(lambda seed: DockerBackend().execute("refund", "accurate", seed), [42, 43]))
     assert all(result["assessment"]["task_success"] for result in results)
     assert sandbox_names() == before
+
+
+def test_live_orchestrator_cancellation_cleans_container(monkeypatch):
+    import time
+    import preflight_eval.sandbox as sandbox
+    original = sandbox.docker_command
+    before = sandbox_names()
+    def slow(name, image):
+        args = original(name, image)
+        args[-1:-1] = ['--entrypoint', 'python']
+        return args + ['-B', '-c', 'import time; time.sleep(30)']
+    monkeypatch.setattr(sandbox, 'docker_command', slow)
+    deadline = time.monotonic() + 1
+    with pytest.raises(InfrastructureFailure, match='cancelled'):
+        DockerBackend().execute('refund', 'accurate', 42, timeout=10, cancelled=lambda: time.monotonic() >= deadline)
+    assert sandbox_names() == before

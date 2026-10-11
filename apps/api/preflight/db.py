@@ -189,6 +189,11 @@ class Credential(Base):
 
 
 class Database:
+    async def readiness(self):
+        from sqlalchemy import text
+        async with self.async_sessions() as session:
+            return await session.scalar(text("SELECT 1"))
+
     def __init__(self, url=None):
         url = url or os.environ.get("DATABASE_URL", "sqlite:///./.local/preflight.sqlite")
         if url.startswith("sqlite"):
@@ -201,6 +206,12 @@ class Database:
                 connection.execute("PRAGMA foreign_keys=ON")
                 connection.execute("PRAGMA busy_timeout=10000")
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
+        from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+        from sqlalchemy.pool import NullPool
+        async_url = url.replace("sqlite://", "sqlite+aiosqlite://", 1) if url.startswith("sqlite://") else url
+        # NullPool supports CLI/tests using independent event loops without sharing driver connections.
+        self.async_engine = create_async_engine(async_url, poolclass=NullPool)
+        self.async_sessions = async_sessionmaker(self.async_engine, expire_on_commit=False)
 
     def initialize(self):
         Base.metadata.create_all(self.engine)

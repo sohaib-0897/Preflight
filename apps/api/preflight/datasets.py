@@ -22,7 +22,7 @@ class DatasetInput(Name):
 
 
 @router.post("/projects/{project_id}/datasets", status_code=201)
-async def create_dataset(project_id: str, body: DatasetInput, user=Depends(current_user), db=Depends(get_db)):
+def create_dataset(project_id: str, body: DatasetInput, user=Depends(current_user), db=Depends(get_db)):
     _, org = project_access(db, user, project_id, "developer")
     payload = {"name": body.name, "scenario_ids": body.scenario_ids, "benchmark": "native", "benchmark_version": "1.0.0"}
     payload["fingerprint"] = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
@@ -41,6 +41,6 @@ async def create_dataset(project_id: str, body: DatasetInput, user=Depends(curre
 
 
 @router.get("/projects/{project_id}/datasets")
-async def datasets(project_id: str, user=Depends(current_user), db=Depends(get_db)):
+def datasets(project_id: str, user=Depends(current_user), db=Depends(get_db)):
     project_access(db, user, project_id)
     return [{"id": d.id, **d.payload} for d in db.scalars(select(Dataset).where(Dataset.project_id == project_id).order_by(Dataset.created_at.desc()).limit(100))]

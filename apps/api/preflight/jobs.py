@@ -19,7 +19,7 @@ from preflight_benchmarks import registry
 router = APIRouter(prefix="/api/v1")
 ACTIVE = {"PREPARING", "RUNNING", "SCORING"}
 TERMINAL = {"COMPLETED", "FAILED", "CANCELLED", "BLOCKED"}
-TRANSITIONS = {"CREATED": {"QUEUED", "CANCELLED"}, "QUEUED": {"PREPARING", "CANCELLED"}, "PREPARING": {"RUNNING", "BLOCKED", "FAILED", "CANCELLED"}, "RUNNING": {"SCORING", "FAILED", "BLOCKED", "CANCELLED"}, "SCORING": {"COMPLETED", "FAILED", "BLOCKED", "CANCELLED"}}
+TRANSITIONS = {"CREATED": {"QUEUED", "CANCELLED"}, "QUEUED": {"PREPARING", "CANCELLED"}, "PREPARING": {"RUNNING", "BLOCKED", "FAILED", "CANCELLED"}, "RUNNING": {"QUEUED", "SCORING", "FAILED", "BLOCKED", "CANCELLED"}, "SCORING": {"COMPLETED", "FAILED", "BLOCKED", "CANCELLED"}}
 
 
 class RunInput(BaseModel):
@@ -87,12 +87,25 @@ def serialize(run, db, details=False):
 
 
 @router.get("/benchmarks")
-async def benchmarks(user=Depends(current_user)):
+def benchmarks(user=Depends(current_user)):
     return registry()
 
 
 @router.post("/projects/{project_id}/runs", status_code=201)
 async def create_run(project_id: str, body: RunInput, user=Depends(current_user), db=Depends(get_db)):
+    import asyncio
+    result = await asyncio.to_thread(create_run_service, project_id, body, user, db)
+    if os.environ.get("REDIS_URL"):
+        try:
+            from .arq_worker import enqueue
+            await enqueue(result["id"])
+        except Exception:
+            import logging
+            logging.getLogger("preflight").warning(json.dumps({"event":"redis_enqueue_unavailable","run_id":result["id"],"fallback":"database dispatch on recovery"}))
+    return result
+
+
+def create_run_service(project_id: str, body: RunInput, user=Depends(current_user), db=Depends(get_db)):
     _, org = project_access(db, user, project_id, "developer")
     version = db.get(AgentVersion, body.version_id)
     agent = db.get(Agent, version.agent_id) if version else None
@@ -130,18 +143,11 @@ async def create_run(project_id: str, body: RunInput, user=Depends(current_user)
     audit(db, user, org, "run.create", run.id)
     db.commit()
     transition(db, run, "QUEUED")
-    if os.environ.get("REDIS_URL"):
-        try:
-            from .arq_worker import enqueue
-            await enqueue(run.id)
-        except Exception:
-            import logging
-            logging.getLogger("preflight").warning(json.dumps({"event":"redis_enqueue_unavailable","run_id":run.id,"fallback":"durable database worker"}))
     return serialize(run, db)
 
 
 @router.get("/projects/{project_id}/runs")
-async def list_runs(project_id: str, status: str | None = None, offset: int = 0, limit: int = 50, user=Depends(current_user), db=Depends(get_db)):
+def list_runs(project_id: str, status: str | None = None, offset: int = 0, limit: int = 50, user=Depends(current_user), db=Depends(get_db)):
     project_access(db, user, project_id)
     if offset < 0 or not 1 <= limit <= 100 or status and status not in set(TRANSITIONS) | TERMINAL:
         raise HTTPException(422, "Invalid pagination or status")
@@ -152,13 +158,13 @@ async def list_runs(project_id: str, status: str | None = None, offset: int = 0,
 
 
 @router.get("/runs/{run_id}")
-async def get_run(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def get_run(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run, _ = run_access(db, user, run_id)
     return serialize(run, db, True)
 
 
 @router.post("/runs/{run_id}/cancel")
-async def cancel_run(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def cancel_run(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run, org = run_access(db, user, run_id, "developer")
     if run.status in TERMINAL:
         raise HTTPException(409, "Run is already terminal")
@@ -189,12 +195,19 @@ def claim(db, run_id):
     return db.get(EvaluationRun, run_id)
 
 
-def perform(database, run_id):
+def perform(database, run_id, stop=None):
     with database.sessions() as db:
         run = claim(db, run_id)
         if not run:
             return False
         worker = run.worker_id
+        def cancelled():
+            if stop is not None and stop.is_set():
+                return True
+            with database.sessions() as check:
+                latest = check.get(EvaluationRun, run_id)
+                return latest.status != "RUNNING" or latest.worker_id != worker
+
         version = db.get(AgentVersion, run.version_id)
         config = run.config
         deadline = time.monotonic()+config["timeout_seconds"]
@@ -207,6 +220,11 @@ def perform(database, run_id):
                     run = db.get(EvaluationRun, run_id)
                     if run.status != "RUNNING" or run.worker_id != worker:
                         return False
+                    if cancelled():
+                        if run.status == "RUNNING":
+                            native = db.get(Agent, version.agent_id).framework == "native"
+                            transition(db, run, "QUEUED" if native else "BLOCKED", "Worker interrupted; native fixtures safely resumable, connected side effects require review")
+                        return False
                     remaining = deadline-time.monotonic()
                     if remaining <= 0:
                         transition(db, run, "BLOCKED", "Infrastructure execution deadline exceeded; not scored as an agent failure")
@@ -215,13 +233,14 @@ def perform(database, run_id):
                     if existing:
                         continue
                     result = None
-                    for infrastructure_retry in range(2):
+                    retry_budget = 2 if db.get(Agent, version.agent_id).framework == "native" else 1
+                    for infrastructure_retry in range(retry_budget):
                         try:
                             if config["backend"] == "docker":
-                                result = DockerBackend().execute(scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()))
+                                result = DockerBackend().execute(scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
                             elif db.get(Agent, version.agent_id).framework != "native":
                                 from .connections import execute_connected
-                                result = execute_connected(db, run, version, scenario, config["seed"]+trial, max(.1, deadline-time.monotonic()))
+                                result = execute_connected(db, run, version, scenario, config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
                             else:
                                 result = execute(scenario, version.config["mode"], config["seed"]+trial)
                             break
@@ -262,7 +281,7 @@ def perform(database, run_id):
 
 
 @router.post("/runs/{run_id}/execute")
-async def execute_demo(run_id: str, request: Request, user=Depends(current_user), db=Depends(get_db)):
+def execute_demo(run_id: str, request: Request, user=Depends(current_user), db=Depends(get_db)):
     run, org = run_access(db, user, run_id, "developer")
     if run.config.get("agent_framework", "native") != "native":
         raise HTTPException(409, "Connected agents require the background worker")
@@ -280,7 +299,7 @@ async def execute_demo(run_id: str, request: Request, user=Depends(current_user)
 
 
 @router.post("/runs/{run_id}/replay/{attempt_id}")
-async def replay(run_id: str, attempt_id: str, user=Depends(current_user), db=Depends(get_db)):
+def replay(run_id: str, attempt_id: str, user=Depends(current_user), db=Depends(get_db)):
     run_access(db, user, run_id, "developer")
     attempt = db.get(ScenarioAttempt, attempt_id)
     if not attempt or attempt.run_id != run_id:
@@ -291,7 +310,7 @@ async def replay(run_id: str, attempt_id: str, user=Depends(current_user), db=De
 
 
 @router.post("/runs/{run_id}/attempts/{attempt_id}/reviews", status_code=201)
-async def review(run_id: str, attempt_id: str, body: dict, user=Depends(current_user), db=Depends(get_db)):
+def review(run_id: str, attempt_id: str, body: dict, user=Depends(current_user), db=Depends(get_db)):
     _, org = run_access(db, user, run_id, "admin")
     attempt = db.get(ScenarioAttempt, attempt_id)
     if not attempt or attempt.run_id != run_id:
@@ -306,27 +325,28 @@ async def review(run_id: str, attempt_id: str, body: dict, user=Depends(current_
 
 
 @router.get("/runs/{run_id}/reviews")
-async def reviews(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def reviews(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run_access(db, user, run_id)
     attempts = select(ScenarioAttempt.id).where(ScenarioAttempt.run_id == run_id)
     return [{"id": r.id, "attempt_id": r.attempt_id, "outcome": r.outcome, "justification": r.justification, "at": r.at} for r in db.scalars(select(HumanReview).where(HumanReview.attempt_id.in_(attempts)).order_by(HumanReview.at))]
 
 
 @router.get("/runs/{run_id}/events")
-async def progress_events(run_id: str, user=Depends(current_user), db=Depends(get_db)):
+def progress_events(run_id: str, user=Depends(current_user), db=Depends(get_db)):
     run, _ = run_access(db, user, run_id)
     from fastapi.responses import StreamingResponse
     # Finite SSE snapshot can be reconnected; avoids holding database sessions indefinitely.
     transitions = [{"previous": t.previous, "current": t.current, "at": t.at} for t in db.scalars(select(RunTransition).where(RunTransition.run_id == run_id).order_by(RunTransition.at))]
+    progress = serialize(run, db)["progress"]
     async def stream():
         for index, entry in enumerate(transitions):
             yield f"id: {index}\nevent: transition\ndata: {json.dumps(entry)}\n\n"
-        yield f"event: progress\ndata: {json.dumps(serialize(run, db)['progress'])}\n\n"
+        yield f"event: progress\ndata: {json.dumps(progress)}\n\n"
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 @router.get("/runs/{run_id}/attempts/{attempt_id}/trace")
-async def trace_graph(run_id: str, attempt_id: str, user=Depends(current_user), db=Depends(get_db)):
+def trace_graph(run_id: str, attempt_id: str, user=Depends(current_user), db=Depends(get_db)):
     run_access(db, user, run_id)
     attempt = db.get(ScenarioAttempt, attempt_id)
     if not attempt or attempt.run_id != run_id:
@@ -336,7 +356,7 @@ async def trace_graph(run_id: str, attempt_id: str, user=Depends(current_user), 
 
 
 @router.get("/trace-comparisons")
-async def compare_traces(baseline_run: str, baseline_attempt: str, candidate_run: str, candidate_attempt: str, user=Depends(current_user), db=Depends(get_db)):
+def compare_traces(baseline_run: str, baseline_attempt: str, candidate_run: str, candidate_attempt: str, user=Depends(current_user), db=Depends(get_db)):
     left_run, _ = run_access(db, user, baseline_run)
     right_run, _ = run_access(db, user, candidate_run)
     if left_run.project_id != right_run.project_id:

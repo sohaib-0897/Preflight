@@ -63,6 +63,7 @@ def main():
         assert all(a["result"]["events"] for a in result["attempts"])
         assert [t["current"] for t in result["transitions"]] == [
             "QUEUED", "PREPARING", "RUNNING", "SCORING", "COMPLETED"]
+        command("exec", "-T", "api", "python", "-c", "import asyncio; from preflight.arq_worker import settings; from arq.connections import create_pool; from arq.jobs import Job; " + "exec('async def check():\n pool = await create_pool(settings())\n result = await Job(\"preflight-" + run["id"] + "\",pool).result(timeout=5)\n assert result is True\n await pool.aclose()\n'); asyncio.run(check())")
         command("restart", "worker")
         assert request(f'/runs/{run["id"]}')["summary"] == result["summary"]
         print("Compose verified: healthy PostgreSQL/Redis/API, migrations without drift, "

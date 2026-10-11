@@ -20,8 +20,10 @@ def create_app(database=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        db.initialize()
+        import asyncio
+        await asyncio.to_thread(db.initialize)
         yield
+        await db.async_engine.dispose()
 
     app = FastAPI(title="Preflight API", version="1.0.0", lifespan=lifespan)
     app.state.db = db
@@ -55,8 +57,7 @@ def create_app(database=None):
 
     @app.get("/api/v1/health")
     async def health():
-        with db.sessions() as session:
-            session.execute(text("SELECT 1"))
+        await db.readiness()
         return {"status": "ok", "database": "ok", "execution": "docker" if os.environ.get("PREFLIGHT_EXECUTION") == "docker" else "trusted-demo"}
 
     public = Path(__file__).resolve().parents[3] / "apps/web/public"

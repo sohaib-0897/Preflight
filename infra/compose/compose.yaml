@@ -33,9 +33,11 @@ services:
       retries: 30
     environment:
       DATABASE_URL: postgresql+psycopg://preflight:${POSTGRES_PASSWORD}@postgres/preflight
+      REDIS_URL: redis://redis:6379/0
       PREFLIGHT_EXECUTION: trusted-demo
       PREFLIGHT_COOKIE_SECURE: "false"
     depends_on:
+      redis: {condition: service_healthy}
       postgres: {condition: service_healthy}
     volumes: ["artifacts:/app/.local"]
     cap_drop: [ALL]
@@ -45,11 +47,14 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/api.Dockerfile
-    command: ["python", "-m", "preflight.worker"]
+    command: ["arq", "preflight.arq_worker.WorkerSettings"]
+    stop_grace_period: 140s
     environment:
       DATABASE_URL: postgresql+psycopg://preflight:${POSTGRES_PASSWORD}@postgres/preflight
+      REDIS_URL: redis://redis:6379/0
       PREFLIGHT_EXECUTION: trusted-demo
     depends_on:
+      redis: {condition: service_healthy}
       postgres: {condition: service_healthy}
       api: {condition: service_healthy}
     volumes: ["artifacts:/app/.local"]

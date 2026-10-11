@@ -65,7 +65,7 @@ def digest(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def current_user(request: Request, db=Depends(get_db)):
+def current_user(request: Request, db=Depends(get_db)):
     token = request.cookies.get("preflight_session", "")
     session = db.get(Session, digest(token)) if token else None
     if not session or session.expires < time.time():
@@ -124,7 +124,7 @@ def new_session(db, user, response):
 
 
 @router.post("/auth/register", status_code=201)
-async def register(body: Credentials, request: Request, response: Response, db=Depends(get_db)):
+def register(body: Credentials, request: Request, response: Response, db=Depends(get_db)):
     rate_limit(request)
     user = User(email=body.email, password=ph.hash(body.password))
     org = Organization(name="My organization")
@@ -141,7 +141,7 @@ async def register(body: Credentials, request: Request, response: Response, db=D
 
 
 @router.post("/auth/login")
-async def login(body: Credentials, request: Request, response: Response, db=Depends(get_db)):
+def login(body: Credentials, request: Request, response: Response, db=Depends(get_db)):
     rate_limit(request)
     user = db.scalar(select(User).where(User.email == body.email))
     try:
@@ -154,14 +154,14 @@ async def login(body: Credentials, request: Request, response: Response, db=Depe
 
 
 @router.get("/auth/me")
-async def me(request: Request, user=Depends(current_user), db=Depends(get_db)):
+def me(request: Request, user=Depends(current_user), db=Depends(get_db)):
     session = db.get(Session, digest(request.cookies["preflight_session"]))
     memberships = db.scalars(select(Membership).where(Membership.user_id == user.id)).all()
     return {"id": user.id, "email": user.email, "csrf_token": session.csrf, "organizations": [{"id": m.org_id, "name": db.get(Organization, m.org_id).name, "role": m.role} for m in memberships]}
 
 
 @router.post("/auth/logout")
-async def logout(request: Request, response: Response, user=Depends(current_user), db=Depends(get_db)):
+def logout(request: Request, response: Response, user=Depends(current_user), db=Depends(get_db)):
     session = db.get(Session, digest(request.cookies["preflight_session"]))
     db.delete(session)
     db.commit()
@@ -170,7 +170,7 @@ async def logout(request: Request, response: Response, user=Depends(current_user
 
 
 @router.post("/organizations", status_code=201)
-async def create_org(body: Name, user=Depends(current_user), db=Depends(get_db)):
+def create_org(body: Name, user=Depends(current_user), db=Depends(get_db)):
     org = Organization(name=body.name)
     db.add(org)
     db.flush()
@@ -181,13 +181,13 @@ async def create_org(body: Name, user=Depends(current_user), db=Depends(get_db))
 
 
 @router.get("/organizations/{org_id}/members")
-async def members(org_id: str, user=Depends(current_user), db=Depends(get_db)):
+def members(org_id: str, user=Depends(current_user), db=Depends(get_db)):
     authorize(db, user, org_id)
     return [{"email": db.get(User, m.user_id).email, "role": m.role} for m in db.scalars(select(Membership).where(Membership.org_id == org_id))]
 
 
 @router.post("/organizations/{org_id}/members", status_code=201)
-async def add_member(org_id: str, body: MemberInput, user=Depends(current_user), db=Depends(get_db)):
+def add_member(org_id: str, body: MemberInput, user=Depends(current_user), db=Depends(get_db)):
     caller = authorize(db, user, org_id, "admin")
     if body.role == "admin" and caller.role != "owner":
         raise HTTPException(403, "Only owners can assign admins")
@@ -203,13 +203,13 @@ async def add_member(org_id: str, body: MemberInput, user=Depends(current_user),
 
 
 @router.get("/workspaces")
-async def workspaces(user=Depends(current_user), db=Depends(get_db)):
+def workspaces(user=Depends(current_user), db=Depends(get_db)):
     orgs = select(Membership.org_id).where(Membership.user_id == user.id)
     return [{"id": w.id, "org_id": w.org_id, "name": w.name} for w in db.scalars(select(Workspace).where(Workspace.org_id.in_(orgs)).order_by(Workspace.name))]
 
 
 @router.post("/organizations/{org_id}/workspaces", status_code=201)
-async def create_workspace(org_id: str, body: Name, user=Depends(current_user), db=Depends(get_db)):
+def create_workspace(org_id: str, body: Name, user=Depends(current_user), db=Depends(get_db)):
     authorize(db, user, org_id, "admin")
     w = Workspace(org_id=org_id, name=body.name)
     db.add(w)
@@ -220,7 +220,7 @@ async def create_workspace(org_id: str, body: Name, user=Depends(current_user), 
 
 
 @router.get("/workspaces/{workspace_id}/projects")
-async def projects(workspace_id: str, offset: int = 0, limit: int = 50, user=Depends(current_user), db=Depends(get_db)):
+def projects(workspace_id: str, offset: int = 0, limit: int = 50, user=Depends(current_user), db=Depends(get_db)):
     w = db.get(Workspace, workspace_id)
     if not w:
         raise HTTPException(404, "Resource not found")
@@ -231,7 +231,7 @@ async def projects(workspace_id: str, offset: int = 0, limit: int = 50, user=Dep
 
 
 @router.post("/workspaces/{workspace_id}/projects", status_code=201)
-async def create_project(workspace_id: str, body: Name, user=Depends(current_user), db=Depends(get_db)):
+def create_project(workspace_id: str, body: Name, user=Depends(current_user), db=Depends(get_db)):
     w = db.get(Workspace, workspace_id)
     if not w:
         raise HTTPException(404, "Resource not found")
@@ -245,6 +245,6 @@ async def create_project(workspace_id: str, body: Name, user=Depends(current_use
 
 
 @router.get("/organizations/{org_id}/audit")
-async def audit_events(org_id: str, user=Depends(current_user), db=Depends(get_db)):
+def audit_events(org_id: str, user=Depends(current_user), db=Depends(get_db)):
     authorize(db, user, org_id, "admin")
     return [{"action": e.action, "subject": e.subject, "at": e.at} for e in db.scalars(select(AuditEvent).where(AuditEvent.org_id == org_id).order_by(AuditEvent.at.desc()).limit(100))]

@@ -74,7 +74,7 @@ def add_version(db, agent, body):
 
 
 @router.post("/projects/{project_id}/agents", status_code=201)
-async def create_agent(project_id: str, body: AgentInput, user=Depends(current_user), db=Depends(get_db)):
+def create_agent(project_id: str, body: AgentInput, user=Depends(current_user), db=Depends(get_db)):
     _, org_id = project_access(db, user, project_id, "developer")
     if body.framework not in {"native", "http", "python", "langgraph", "crewai", "openai-agents", "custom"}:
         raise HTTPException(422, "Unsupported agent framework")
@@ -90,13 +90,13 @@ async def create_agent(project_id: str, body: AgentInput, user=Depends(current_u
 
 
 @router.get("/projects/{project_id}/agents")
-async def agents(project_id: str, user=Depends(current_user), db=Depends(get_db)):
+def agents(project_id: str, user=Depends(current_user), db=Depends(get_db)):
     project_access(db, user, project_id)
     return [{"id": a.id, "name": a.name, "description": a.description, "framework": a.framework, "versions": [serialize_version(v) for v in db.scalars(select(AgentVersion).where(AgentVersion.agent_id == a.id).order_by(AgentVersion.created_at))]} for a in db.scalars(select(Agent).where(Agent.project_id == project_id).order_by(Agent.name).limit(100))]
 
 
 @router.post("/agents/{agent_id}/versions", status_code=201)
-async def create_version(agent_id: str, body: VersionInput, user=Depends(current_user), db=Depends(get_db)):
+def create_version(agent_id: str, body: VersionInput, user=Depends(current_user), db=Depends(get_db)):
     a, org = agent_access(db, user, agent_id, "developer")
     v = add_version(db, a, body)
     audit(db, user, org, "agent.version.create", v.id)

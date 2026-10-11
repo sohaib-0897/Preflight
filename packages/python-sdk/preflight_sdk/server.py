@@ -4,6 +4,7 @@ The platform never imports user-supplied code. Run this in your own environment.
 Agent responses declare requested fixture actions; Preflight's broker authorizes
 and applies them. Remote claims about side effects are not treated as proof.
 """
+
 import asyncio
 import hmac
 from typing import Callable
@@ -21,7 +22,9 @@ def create_agent_app(invoke: Callable, bearer_token: str | None = None, timeout=
     app = FastAPI(title="Preflight agent bridge")
 
     def authenticate(request):
-        if bearer_token and not hmac.compare_digest(request.headers.get("authorization", ""), "Bearer " + bearer_token):
+        if bearer_token and not hmac.compare_digest(
+            request.headers.get("authorization", ""), "Bearer " + bearer_token
+        ):
             raise HTTPException(401, "Agent authentication required")
 
     @app.get("/health")
@@ -36,7 +39,12 @@ def create_agent_app(invoke: Callable, bearer_token: str | None = None, timeout=
             async with asyncio.timeout(timeout):
                 result = await invoke(body.inputs, body.seed)
             if hasattr(result, "output"):
-                result = {"output": result.output, "events": result.events, "usage": result.usage, "actions": result.actions}
+                result = {
+                    "output": result.output,
+                    "events": result.events,
+                    "usage": result.usage,
+                    "actions": result.actions,
+                }
             if not isinstance(result, dict) or "output" not in result:
                 raise TypeError("Agent must return an output mapping")
             result.setdefault("events", [])
@@ -52,4 +60,5 @@ def create_agent_app(invoke: Callable, bearer_token: str | None = None, timeout=
 
 def serve(invoke, host="127.0.0.1", port=8090, bearer_token=None):
     import uvicorn
+
     uvicorn.run(create_agent_app(invoke, bearer_token), host=host, port=port)

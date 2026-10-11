@@ -1,4 +1,5 @@
 """Small synchronous Preflight client using opaque cookie sessions."""
+
 import json
 import urllib.request
 import http.cookiejar
@@ -8,10 +9,17 @@ class Client:
     def __init__(self, base_url="http://127.0.0.1:8000"):
         self.url = base_url.rstrip("/") + "/api/v1"
         self.csrf = ""
-        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        self.opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
 
     def request(self, method, path, data=None):
-        request = urllib.request.Request(self.url + path, data=json.dumps(data).encode() if data is not None else None, method=method, headers={"Content-Type": "application/json", "X-CSRF-Token": self.csrf})
+        request = urllib.request.Request(
+            self.url + path,
+            data=json.dumps(data).encode() if data is not None else None,
+            method=method,
+            headers={"Content-Type": "application/json", "X-CSRF-Token": self.csrf},
+        )
         with self.opener.open(request, timeout=30) as response:
             return json.load(response)
 
@@ -21,16 +29,40 @@ class Client:
         return result
 
     def register_agent(self, project_id, name, mode="accurate"):
-        return self.request("POST", f"/projects/{project_id}/agents", {"name": name, "framework": "native", "version": "1.0.0", "config": {"mode": mode}})
+        return self.request(
+            "POST",
+            f"/projects/{project_id}/agents",
+            {"name": name, "framework": "native", "version": "1.0.0", "config": {"mode": mode}},
+        )
 
     def evaluate(self, project_id, version_id, key, trials=1):
-        return self.request("POST", f"/projects/{project_id}/runs", {"version_id": version_id, "idempotency_key": key, "trials": trials, "backend": "trusted-demo"})
+        return self.request(
+            "POST",
+            f"/projects/{project_id}/runs",
+            {
+                "version_id": version_id,
+                "idempotency_key": key,
+                "trials": trials,
+                "backend": "trusted-demo",
+            },
+        )
 
     def run(self, run_id):
         return self.request("GET", f"/runs/{run_id}")
 
     def register_connection(self, project_id, name, endpoint, framework="http", credential_id=None):
-        return self.request("POST", f"/projects/{project_id}/agents", {"name": name, "framework": framework, "version": "1.0.0", "config": {"endpoint": endpoint, "credential_id": credential_id}})
+        return self.request(
+            "POST",
+            f"/projects/{project_id}/agents",
+            {
+                "name": name,
+                "framework": framework,
+                "version": "1.0.0",
+                "config": {"endpoint": endpoint, "credential_id": credential_id},
+            },
+        )
 
     def credential(self, workspace_id, name, value):
-        return self.request("POST", f"/workspaces/{workspace_id}/credentials", {"name": name, "value": value})
+        return self.request(
+            "POST", f"/workspaces/{workspace_id}/credentials", {"name": name, "value": value}
+        )
