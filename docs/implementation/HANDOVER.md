@@ -1,3 +1,21 @@
+## Platform phase 4 — official offline smoke execution
+
+Implemented pinned isolated official runtimes, fixed offline entry points, upstream
+scoring preservation, API/worker integration and selectable installed presets.
+τ³ mock create_task_1 and AgentDojo banking user_task_0 execute genuinely; accurate
+and missing-action reference versions produce upstream 1/0. Real worker persistence,
+reports and conservative gates verified locally. Network-denied runtime tests found
+no outbound connections. Official CI matrix added; remote verification pending.
+
+This is OFFICIAL_SMOKE_EXECUTED, not full-suite/model-quality verification. Compatible
+arbitrary agent protocols, hosted suites and AgentDojo adversarial coverage remain
+partial/unverified. See docs/benchmarks/UPSTREAM.md for installation and exact scope.
+
+Phase 3 remote confirmation: commit a705713, Actions 38179576766 SUCCESS: 65 Python
+checks including 15 live Docker checks, real Redis jobs, PostgreSQL-backed ARQ
+Compose result and migrations; six Chromium checks, framework matrix all passed.
+The initial Compose helper quoting failure was repaired without weakening tests.
+
 ## Platform phase 3 — durable orchestration (local verification)
 
 Redis/ARQ integration, concurrent durable claims, reconciliation, native lease

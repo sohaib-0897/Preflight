@@ -1,3 +1,7 @@
+## Official offline integration boundary
+
+τ³ is installed as upstream package `tau2`, pinned to v1.0.1 commit fc0055dc4e0a316c3f83133267fbd6faaa770992. Its ENV scorer and AgentDojo banking utility scorer execute unchanged. Optional fixed trusted scripted-agent presets are exposed separately from general agent/model benchmarking. Environment-assertion cases can raise upstream exceptions on missing state; the verified tau create_task_1 DB-scoring case supplies both pass and fail evidence without inventing a score from exceptions. Full hosted/adversarial suites remain independently unverified.
+
 ## Isolated framework environments
 
 CrewAI and OpenAI Agents SDK have incompatible OpenAI package requirements. Separate hash-locked Python 3.12 environments preserve maintained versions and real runtime tests. Credential keys persist outside images; arbitrary code stays in operator-owned gateways.

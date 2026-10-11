@@ -36,8 +36,8 @@ class RunInput(BaseModel):
     @field_validator("scenarios")
     @classmethod
     def scenarios_valid(cls, v):
-        if not v or len(v) > 8 or len(v) != len(set(v)) or set(v)-set(SCENARIO_IDS):
-            raise ValueError("Select distinct native scenarios")
+        if not v or len(v) > 8 or len(v) != len(set(v)) or set(v)-set(SCENARIO_IDS + ["create_task_1", "user_task_0"]):
+            raise ValueError("Select distinct registered scenarios")
         return sorted(v)
 
     @field_validator("backend")
@@ -114,8 +114,20 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
     if agent.framework != "native" and body.backend == "docker":
         raise HTTPException(422, "Remote agents execute in their operator-owned environment; Docker runner supports native fixtures only")
     if body.benchmark != "native":
-        raise HTTPException(422, "Official upstream execution unavailable; consult benchmark status")
+        from preflight_benchmarks.execution import SPECS
+        spec = SPECS.get(body.benchmark)
+        if not spec or not next((b for b in registry() if b["id"] == body.benchmark and b["status"] == "AVAILABLE"), None):
+            raise HTTPException(422, "Official offline benchmark environment unavailable; consult benchmark status")
+        if agent.framework != "native" or version.config["mode"] not in {"accurate", "regressed"} or body.backend != "trusted-demo" or body.dataset_id:
+            raise HTTPException(422, "Official smoke supports only the declared scripted native reference-agent preset in its isolated dependency environment")
     config = body.model_dump(exclude={"version_id", "idempotency_key"})
+    if body.benchmark == "native":
+        if set(config["scenarios"]) - set(SCENARIO_IDS):
+            raise HTTPException(422, "Scenarios do not belong to the native benchmark")
+    else:
+        config["scenarios"] = [spec["scenario"]] if "scenarios" not in body.model_fields_set else config["scenarios"]
+        if config["scenarios"] != [spec["scenario"]]:
+            raise HTTPException(422, "Select the supported official scenario")
     if body.dataset_id:
         dataset = db.get(Dataset, body.dataset_id)
         if not dataset or dataset.project_id != project_id:
@@ -123,6 +135,8 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
         config["scenarios"] = dataset.payload["scenario_ids"]
         config["dataset_fingerprint"] = dataset.payload["fingerprint"]
     config.update({"benchmark_version": "1.0.0", "agent_fingerprint": version.fingerprint, "agent_framework": agent.framework, "execution_label": "trusted built-in code, not a sandbox" if body.backend == "trusted-demo" else "restricted Docker native runner"})
+    if body.benchmark != "native":
+        config.update({"benchmark_version":spec["version"], "package_version":spec["package_version"], "execution_label":"Official offline smoke, scripted reference agent, trusted upstream process; not a Docker sandbox or model-quality benchmark"})
     if agent.framework != "native":
         config["execution_label"] = "Connected agent in operator-owned environment; local broker side effects verified"
     existing = db.scalar(select(EvaluationRun).where(EvaluationRun.project_id == project_id, EvaluationRun.idempotency_key == body.idempotency_key))
@@ -236,7 +250,10 @@ def perform(database, run_id, stop=None):
                     retry_budget = 2 if db.get(Agent, version.agent_id).framework == "native" else 1
                     for infrastructure_retry in range(retry_budget):
                         try:
-                            if config["backend"] == "docker":
+                            if config["benchmark"] != "native":
+                                from preflight_benchmarks.execution import execute_official
+                                result = execute_official(config["benchmark"], scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
+                            elif config["backend"] == "docker":
                                 result = DockerBackend().execute(scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
                             elif db.get(Agent, version.agent_id).framework != "native":
                                 from .connections import execute_connected
@@ -283,7 +300,7 @@ def perform(database, run_id, stop=None):
 @router.post("/runs/{run_id}/execute")
 def execute_demo(run_id: str, request: Request, user=Depends(current_user), db=Depends(get_db)):
     run, org = run_access(db, user, run_id, "developer")
-    if run.config.get("agent_framework", "native") != "native":
+    if run.config.get("agent_framework", "native") != "native" or run.config["benchmark"] != "native":
         raise HTTPException(409, "Connected agents require the background worker")
     if run.config["backend"] != "trusted-demo":
         raise HTTPException(409, "Docker jobs require the operator worker")

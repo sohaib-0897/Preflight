@@ -73,3 +73,26 @@ jobs:
         with:
           name: framework-${{ matrix.framework }}-evidence
           path: .local/*-smoke.json
+  official-benchmarks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        benchmark: [tau3, agentdojo]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install uv==0.13.0 -r requirements.lock
+      - run: bash scripts/install_benchmark.sh ${{ matrix.benchmark }}
+      - name: Execute genuine official scorer with offline reference agent
+        run: |
+          if [ "${{ matrix.benchmark }}" = tau3 ]; then runtime=.local/tau-venv/bin/python; else runtime=.local/agentdojo-venv/bin/python; fi
+          "$runtime" scripts/verify_official.py ${{ matrix.benchmark }}
+      - name: Verify official API and worker persistence
+        run: python scripts/verify_official_platform.py ${{ matrix.benchmark }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: official-${{ matrix.benchmark }}-smoke
+          path: .local/*-official-smoke.json

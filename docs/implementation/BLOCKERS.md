@@ -1,3 +1,13 @@
+## Current optional execution limits — 2026-10-12
+
+Local Docker socket is permission denied; live isolation and Compose are verified by
+remote CI. Official offline smoke execution is now implemented locally. Full official
+hosted/model-driven suites are unverified and require compatible agent protocols,
+provider setup and an authorized budget. No API charges were incurred. Default
+Compose intentionally excludes optional benchmark environments. Historical blockers
+below describe earlier checkpoints and are superseded where explicit evidence above
+exists.
+
 # Platform completion — phase 1
 
 **Frontend foundation: COMPLETE AND VERIFIED locally for native workflows; remote CI pending this checkpoint.** Genuine Next.js App Router/React application now replaces the script wrapper. Locked dependencies include Tailwind, Radix Dialog, TanStack Query, React Hook Form, Zod, local open-source fonts and Vitest. Existing API/data contracts and FastAPI fallback are preserved. Module routes cover organizations/workspaces, projects, agents/versions, runs/evidence, benchmarks/datasets, reviews/security/traces, comparisons, policies, reports and settings. Non-native execution remains a later phase, not a frontend claim.
