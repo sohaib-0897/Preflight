@@ -1,4 +1,14 @@
-# Verification matrix
+# Docker/CI verification — 2026-10-12
+
+- Docker client 29.9.0 and Compose 5.6.0 are installed. This Codex process cannot access `/var/run/docker.sock` (root:docker, mode 0660; process lacks docker group). User reports ordinary-terminal hello-world succeeded. Host permissions were not modified.
+- Root-context sandbox build attempted and blocked by daemon permission. Compose configuration validates with a disposable validation-only password; existing local services/volumes were not started or modified.
+- Full local Pytest: **42 passed, 14 prerequisite errors**, all errors from live Docker tests. These are failures of access, not passing isolation evidence. Memory/timeout tests now require successful daemon and image checks, preventing startup failures from masquerading as containment.
+- Original published GitHub run [38174859491](https://github.com/sohaib-0897/Preflight/actions/runs/38174859491): five failures because sandbox image was never built. Workflow repaired to build from repository root before the full test suite, then exercise a fresh Compose project.
+- Added real Compose smoke verification: PostgreSQL/Redis/API health, Alembic head/drift, queued durable-worker execution, traces, 16 attempts, persisted results after worker restart. Uses a unique project and ephemeral generated credentials; never removes volumes. Remote execution pending.
+
+The historical matrix below records the earlier environment only; its Docker, Git and publishing blockers have changed as described above. Broader product limitations remain unchanged.
+
+# Historical verification matrix (2026-10-10)
 Verified on 2026-10-10 using Ubuntu 26.04.1, Python 3.14.4, Node 22.22.1. No paid model APIs, large models/datasets, cloud resources, third-party adversarial scans or host security changes were used.
 
 | Check | Observed result |

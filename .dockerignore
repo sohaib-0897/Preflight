@@ -1,0 +1,16 @@
+.git
+.venv
+.local
+node_modules
+.next
+.env
+.env.*
+**/__pycache__
+**/*.pyc
+**/*.sqlite*
+**/node_modules
+**/.next
+test-results
+playwright-report
+e HEAD
+h -u origin main

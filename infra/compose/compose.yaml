@@ -16,12 +16,21 @@ services:
     image: redis:7.4.5-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes: ["redis:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
     networks: [backend]
   api:
     build:
       context: ../..
       dockerfile: infra/docker/api.Dockerfile
     ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     environment:
       DATABASE_URL: postgresql+psycopg://preflight:${POSTGRES_PASSWORD}@postgres/preflight
       PREFLIGHT_EXECUTION: trusted-demo
@@ -42,6 +51,7 @@ services:
       PREFLIGHT_EXECUTION: trusted-demo
     depends_on:
       postgres: {condition: service_healthy}
+      api: {condition: service_healthy}
     volumes: ["artifacts:/app/.local"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
