@@ -1,4 +1,2 @@
-import Script from 'next/script';
-export default function Home(){
- return <><div id="app"/><Script src="/app.js" type="module" strategy="afterInteractive"/></>;
-}
+import Platform from '../components/platform';
+export default function Home(){return <Platform/>;}

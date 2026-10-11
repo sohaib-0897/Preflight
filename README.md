@@ -2,7 +2,7 @@
 
 Self-hosted, evidence-based evaluation for agent developers. Run deterministic offline agents, verify what actually changed, inspect tool events, compare versions, and apply release policies.
 
-**Status: functional native evaluation core; partial platform implementation.** Backend behavior is verified in-process. Docker isolation, PostgreSQL, official external suites, Next.js and browser accessibility remain unverified or blocked on the implementation host. This repository does not yet meet the complete production/local-browser acceptance criteria. See the [verification matrix](docs/implementation/VERIFICATION.md) and [phase status](docs/implementation/PROGRESS.md).
+**Status: native evaluation and restricted Docker boundary verified; platform completion in progress.** Next.js/React workflows, PostgreSQL/Compose infrastructure, native releases and representative desktop/mobile accessibility checks are verified. Official benchmark execution and nonnative worker dispatch remain separately qualified. See the [verification matrix](docs/implementation/VERIFICATION.md).
 
 ## Working native features
 
@@ -33,7 +33,7 @@ bash scripts/dev.sh
 
 Open http://127.0.0.1:8000. Choose **Create a new account**, enter your private passphrase (12+ characters), create a project, connect an accurate native agent, queue a native suite and select **Execute native demo**. There are no shared demo credentials or default account. See [first evaluation](docs/operations/FIRST_EVALUATION.md).
 
-On the implementation host, the `.venv`, cached-tool installation and compiled frontend are already present. `bash scripts/dev.sh` initializes successfully but the active execution sandbox prohibits port binding; launch it from an ordinary authorized terminal to use the browser. No host permission settings were modified.
+For the Next.js interface, install with `npm ci --prefix apps/web`, start the API, then run `npm --prefix apps/web run dev -- --port 3000`. Configure `PREFLIGHT_API_ORIGIN` for a nondefault backend. Existing services are preserved; use `PREFLIGHT_PORT` to choose a free API port.
 
 Run the standalone core immediately without opening a port:
 
@@ -51,7 +51,7 @@ export POSTGRES_PASSWORD='choose-a-private-local-password'
 docker compose -f infra/compose/compose.yaml up --build
 ```
 
-The API is bound to localhost:8000, with PostgreSQL and Redis on an internal network. This Compose setup runs trusted native demonstrations; Redis/ARQ is optional and the default worker uses the durable database queue. Do not enter a real shared password into committed files. Compose has **not** been built or started in this environment. The API image migrates schema before startup. Configure TLS and secure cookies before any nonlocal deployment.
+The API is bound to localhost:8000, with PostgreSQL and Redis on an internal network. This Compose setup runs trusted native demonstrations; Redis/ARQ is optional and the default worker uses the durable database queue. Do not enter a real shared password into committed files. Compose service/migration/worker verification passes on Docker-enabled GitHub Actions. Local Codex daemon access remains blocked. The API image migrates schema before startup. Configure TLS and secure cookies before any nonlocal deployment.
 
 For restricted Docker jobs, build the native sandbox image and run the operator host worker as described in the [sandbox model](docs/security/SANDBOX.md). The Compose worker does not mount a Docker socket.
 
@@ -72,6 +72,6 @@ npm run test:e2e  # requires local sockets and sandboxed Chrome
 - [Testing and verified limits](docs/implementation/VERIFICATION.md)
 - [API reference](docs/operations/API.md)
 
-The FastAPI reference is available at `/docs` and `/openapi.json` after startup. The Next App Router host in `apps/web` is source only until its dependencies and build can be verified. The current executable frontend uses native forms and dialogs; the requested complete React component/query/form stack is outstanding.
+The FastAPI reference is available at `/docs` and `/openapi.json` after startup. The Next App Router host in `apps/web` is built and browser-tested with React/query/forms/Radix components. The older FastAPI-served interface remains a compatibility fallback.
 
 MIT licensed. [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md).

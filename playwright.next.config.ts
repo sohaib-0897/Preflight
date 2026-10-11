@@ -1,0 +1,3 @@
+import {defineConfig} from '@playwright/test';
+import original from './playwright.config';
+export default defineConfig({...original,testMatch:['journey.spec.ts','next-navigation.spec.ts'],use:{...original.use,baseURL:'http://127.0.0.1:18001'},webServer:[{command:'PREFLIGHT_PORT=18000 DATABASE_URL=sqlite:///.local/next-browser.sqlite bash scripts/dev.sh',url:'http://127.0.0.1:18000/api/v1/health',reuseExistingServer:false,timeout:30000},{command:'PREFLIGHT_API_ORIGIN=http://127.0.0.1:18000 npm --prefix apps/web run start -- --hostname 127.0.0.1 --port 18001',url:'http://127.0.0.1:18001',reuseExistingServer:false,timeout:30000}]});
