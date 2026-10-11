@@ -1,0 +1,55 @@
+name: preflight
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: preflight
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a local database password}
+      POSTGRES_DB: preflight
+    volumes: ["postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U preflight"]
+      interval: 5s
+      retries: 20
+    networks: [backend]
+  redis:
+    image: redis:7.4.5-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis:/data"]
+    networks: [backend]
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://preflight:${POSTGRES_PASSWORD}@postgres/preflight
+      PREFLIGHT_EXECUTION: trusted-demo
+      PREFLIGHT_COOKIE_SECURE: "false"
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes: ["artifacts:/app/.local"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [backend]
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["python", "-m", "preflight.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://preflight:${POSTGRES_PASSWORD}@postgres/preflight
+      PREFLIGHT_EXECUTION: trusted-demo
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes: ["artifacts:/app/.local"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [backend]
+volumes:
+  postgres:
+  redis:
+  artifacts:
+networks:
+  backend:
+    internal: true

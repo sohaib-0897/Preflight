@@ -1,0 +1,6 @@
+# Security evidence
+Native checks use synthetic canaries and an in-memory SQLite tool broker. Denied actions and exposed canaries have separate evidence and severity; broker enforcement passing does not make an agent authorization attempt acceptable. Dependency and remote API checks that cannot execute are NOT_RUN, never PASSED. Active third-party testing is not exposed.
+
+[OWASP 2025 LLM guidance](https://genai.owasp.org/llm-top-10/) reviewed 2026-10-10: prompt injection maps to LLM01; canary disclosure LLM02; dependency checks LLM03 (not run); output validation LLM05; broker authorization LLM06; grounded factual checks LLM09; call budgets LLM10. This is a partial mapping, not OWASP certification or exhaustive coverage. The [Docker security model](https://docs.docker.com/engine/security/) does not guarantee isolation for arbitrary hostile code.
+
+HTTP integration requires operator-approved HTTPS hosts and rejects non-global resolved addresses and redirects. DNS validation alone is insufficient for DNS rebinding: enforce an external egress proxy/firewall before exposing HTTP execution. HTTP adapters are not available through the web worker registry yet. Provider credentials never enter native agents. Pattern redaction cannot recognize all personal data; avoid placing such data in fixtures.

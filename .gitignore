@@ -1,0 +1,14 @@
+.venv/
+node_modules/
+.next/
+.local/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+.env.*
+!.env.example
+playwright-report/
+test-results/
+*.sqlite*
+*.log

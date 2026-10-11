@@ -1,0 +1,19 @@
+name: Preflight release gate
+on:
+  pull_request:
+    paths: ['benchmarks/custom/candidate.json', 'packages/**', 'scripts/demo.py']
+permissions: {contents: read}
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Evaluate candidate with enforced policy
+        run: |
+          mode=$(python -c 'import json; print(json.load(open("benchmarks/custom/candidate.json"))["mode"])')
+          python scripts/demo.py --mode "$mode" --output .local/release-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: release-evidence, path: .local/release-report.json}

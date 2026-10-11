@@ -1,0 +1,17 @@
+{
+  "name": "preflight-verification",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:offline": "tsc -p tsconfig.build.json",
+    "test:e2e": "playwright test",
+    "test:web": "node --test tests/e2e/frontend.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "4.9.5",
+    "@playwright/test": "1.63.0",
+    "axe-core": "4.11.1"
+  },
+  "type": "module"
+}

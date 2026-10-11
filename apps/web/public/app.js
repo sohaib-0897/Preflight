@@ -1,0 +1,383 @@
+const nav = ['Overview', 'Projects', 'Agents', 'Evaluations', 'Benchmarks', 'RealityCheck', 'Security', 'Comparisons', 'Reports', 'Settings'];
+const state = { workspaces: [], projects: [], agents: [], runs: [], benchmarks: [], view: 'Overview', tab: 'Trace', error: '', policies: [], datasets: [] };
+let authMode = 'login';
+let poll;
+export function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] ?? c)); }
+const e = escapeHtml;
+export function formatPercent(value) { return typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : 'Unavailable'; }
+const ms = (value) => typeof value === 'number' ? `${value.toFixed(2)} ms` : 'Unavailable';
+const pretty = (value) => `<pre>${e(JSON.stringify(value, null, 2))}</pre>`;
+const brand = '<div class="brand"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2.5"/><path d="M4 5h7M4 21h16" stroke="currentColor" stroke-width="1.5"/></svg>Preflight</div>';
+function badge(status) { const s = String(status ?? 'NOT_RUN'); return `<span class="badge ${['PASSED', 'PASS', 'COMPLETED', 'AVAILABLE'].includes(s) ? 'good' : ['FAILED', 'FAIL'].includes(s) ? 'bad' : ['BLOCKED', 'INCONCLUSIVE'].includes(s) ? 'warn' : ''}">${e(s.replace(/_/g, ' '))}</span>`; }
+function announce(message) { const node = document.getElementById('announcement'); if (node) {
+    node.textContent = message;
+    setTimeout(() => { node.textContent = ''; }, 6000);
+} }
+async function api(path, data) {
+    const response = await fetch(`/api/v1${path}`, { method: data === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.me?.csrf_token ?? '' }, body: data === undefined ? undefined : JSON.stringify(data) });
+    const result = await response.json();
+    if (!response.ok)
+        throw new Error(typeof result.detail === 'string' ? result.detail : result.error?.message ?? 'Request failed. Check your form and permissions.');
+    return result;
+}
+function head(title, description, action = '') { return `<div class="page-head"><div><h1>${e(title)}</h1><p class="muted">${e(description)}</p></div>${action}</div>`; }
+function action(label, act, primary = false, id = '') { return `<button class="${primary ? 'primary' : ''}" data-action="${e(act)}" data-id="${e(id)}">${e(label)}</button>`; }
+function empty(title, description, button = '') { return `<div class="empty"><h2>${e(title)}</h2><p class="muted">${e(description)}</p>${button}</div>`; }
+function metric(label, value, description) { return `<div class="metric"><span>${e(label)}</span><strong>${e(value)}</strong><span>${e(description)}</span></div>`; }
+function runTable(runs, caption = 'Evaluation history') {
+    if (!runs.length)
+        return empty('No evaluation runs yet', 'Connect a native agent and run the suite to collect real execution evidence.', action('New evaluation', 'new-run', true));
+    return `<div class="table-wrap"><table><caption>${e(caption)}</caption><thead><tr><th scope="col">Run</th><th scope="col">Agent version</th><th scope="col">Status</th><th scope="col">Task success</th><th scope="col">Attempts</th><th scope="col">Created</th></tr></thead><tbody>${runs.map(r => `<tr><td><button class="link mono" data-action="run" data-id="${e(r.id)}">${e(r.id.slice(0, 8))}</button></td><td>${e(versionName(r.version_id))}</td><td>${badge(r.status)}</td><td>${e(formatPercent(r.summary.task_success_rate))}</td><td>${r.progress.completed} / ${r.progress.total}</td><td>${e(new Date(r.created_at).toLocaleString())}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function versionName(id) { for (const a of state.agents) {
+    const v = a.versions.find(v => v.id === id);
+    if (v)
+        return `${a.name} · ${v.version}`;
+} return id.slice(0, 8); }
+function overview() {
+    const latest = state.runs.find(r => r.status === 'COMPLETED');
+    return head('Overview', 'Evidence for your next agent release.', action('New evaluation', 'new-run', true)) + (state.project ? `<div class="notice">${e(state.project.name)} · Native demo uses trusted built-in agents. Select Docker in run settings for restricted execution when an operator worker is available.</div><div class="metrics">${metric('Registered agents', String(state.agents.length), 'In this project')}${metric('Evaluation runs', String(state.runs.length), 'Recorded runs')}${metric('Latest task success', formatPercent(latest?.summary.task_success_rate), 'Latest completed run')}${metric('Critical findings', latest ? String(latest.summary.critical_security_findings) : 'Unavailable', 'Latest completed run')}</div>${runTable(state.runs.slice(0, 8), 'Recent runs')}` : empty('Create your first project', 'Projects hold agents, immutable versions, evaluation runs and release policies.', action('Create project', 'new-project', true))) + `<div class="workflow"><div><span class="step">01 · CONNECT</span><h3>Register a version</h3><p class="muted small">Start with a deterministic native agent. No model API keys required.</p></div><div><span class="step">02 · EVALUATE</span><h3>Check what happened</h3><p class="muted small">Validate database state, factual claims, tool recovery and authorization boundaries.</p></div><div><span class="step">03 · RELEASE</span><h3>Require evidence</h3><p class="muted small">Compare versions and evaluate a versioned policy. Missing evidence remains inconclusive.</p></div></div>`;
+}
+function projectPage() { return head('Projects', 'Choose the scope for your agents and evaluations.', action('Create project', 'new-project', true)) + (state.projects.length ? `<div class="table-wrap"><table><caption>Projects in ${e(state.workspace?.name)}</caption><thead><tr><th>Project</th><th>Workspace</th><th>Action</th></tr></thead><tbody>${state.projects.map(p => `<tr><th scope="row">${e(p.name)}</th><td>${e(state.workspace?.name)}</td><td>${action('Open project', 'project', false, p.id)}</td></tr>`).join('')}</tbody></table></div>` : empty('No projects in this workspace', 'Create a project to organize your evaluations.', action('Create project', 'new-project', true))); }
+function agentsPage() { return head('Agents', 'Immutable configurations make comparisons reproducible.', action('Connect agent', 'new-agent', true)) + (state.agents.length ? state.agents.map(a => `<section class="panel"><div class="page-head"><div><h2>${e(a.name)}</h2><p class="muted small">${e(a.description || 'Native deterministic agent')} · ${e(a.framework)}</p></div>${action('Add version', 'new-version', false, a.id)}</div><div class="table-wrap"><table><caption>Configuration versions</caption><thead><tr><th>Version</th><th>Behavior</th><th>Fingerprint</th></tr></thead><tbody>${a.versions.map(v => `<tr><th scope="row">${e(v.version)}</th><td>${e(v.config.mode)}</td><td class="mono">${e(v.fingerprint.slice(0, 16))}</td></tr>`).join('')}</tbody></table></div></section>`).join('') : empty('Connect your first agent', 'Native agents expose real broker events and state validations. Framework SDK bridges are documented as separate integrations.', action('Connect agent', 'new-agent', true))); }
+function benchmarksPage() { return head('Benchmarks', 'Execution availability is tracked separately for each suite.') + state.benchmarks.map(b => `<section class="benchmark"><div><h2>${e(b.name)} <span class="muted small">${e(b.version)}</span></h2><p class="muted small">${e(b.license)} · ${e(b.source)}</p>${b.reason ? `<p>${e(b.reason)}</p>` : ''}${b.scenarios ? `<ul>${b.scenarios.map(s => `<li>${e(s.name)} <span class="muted small">${e(s.category)}</span></li>`).join('')}</ul>` : ''}</div><div>${badge(b.status)}${b.id === 'native' ? `<p>${action('Run suite', 'new-run', true)}</p>` : ''}</div></section>`).join(''); }
+function attemptsTable(run) { return `<div class="table-wrap"><table><caption>Scenario attempts · select one to inspect evidence</caption><thead><tr><th>Scenario</th><th>Trial</th><th>Outcome</th><th>Latency</th></tr></thead><tbody>${(run.attempts ?? []).map(a => { const r = a.result; const assessment = r.assessment; return `<tr><td><button class="link" data-action="attempt" data-id="${e(a.id)}">${e(a.scenario_id)}</button></td><td>${a.trial + 1}</td><td>${badge(r.kind === 'infrastructure' ? 'BLOCKED' : assessment?.task_success ? 'PASSED' : 'FAILED')}</td><td>${e(ms(r.latency_ms))}</td></tr>`; }).join('')}</tbody></table></div>`; }
+function inspector() {
+    const a = state.attempt;
+    if (!a)
+        return empty('Select a scenario attempt', 'Inspect the accessible event timeline, state evidence and security findings.');
+    const r = a.result;
+    if (r.kind === 'infrastructure')
+        return `<h2>${e(a.scenario_id)}</h2><div class="notice">Infrastructure failure. This attempt has no agent task score.</div>${pretty(r)}`;
+    let content = '';
+    if (state.tab === 'Trace')
+        content = `<ol class="trace">${(r.events ?? []).map(ev => `<li><header><strong>${e(ev.kind === 'tool_call' ? ev.tool : ev.kind)}</strong><span class="muted mono">#${e(ev.sequence)} ${ev.duration_ms !== undefined ? e(ms(ev.duration_ms)) : ''}</span></header>${ev.status ? badge(ev.status) : ''}${pretty(ev.kind === 'tool_call' ? { arguments: ev.arguments, result: ev.result } : ev.input ?? ev.output)}</li>`).join('')}</ol>${action('Replay tool interactions', 'replay', false, a.id)}`;
+    if (state.tab === 'RealityCheck')
+        content = `<p class="muted small">Deterministic evidence. Response wording cannot override final state.</p>${pretty(r.assessment)}`;
+    if (state.tab === 'Security')
+        content = `${(r.security_findings ?? []).map(f => `<div class="notice"><strong>${e(f.severity)} · ${e(f.category)}</strong><p>${e(f.remediation)}</p>${pretty(f.evidence)}</div>`).join('') || '<p>No confirmed findings in this attempt.</p>'}<h3>Check coverage</h3>${pretty(r.security_checks)}`;
+    if (state.tab === 'Review')
+        content = `<p class="muted small">Admin review creates an immutable audited record. Automatic scores remain available.</p><form data-form="review"><input type="hidden" name="attempt" value="${e(a.id)}"><label>Review outcome<select name="outcome"><option>PASSED</option><option>FAILED</option><option>INCONCLUSIVE</option></select></label><label>Justification<textarea name="justification" required minlength="10" maxlength="2000"></textarea></label><button class="primary">Record review</button></form>`;
+    return `<div class="panel"><h2>${e(a.scenario_id)} <span class="muted small">trial ${a.trial + 1}</span></h2><div class="tabs" aria-label="Evidence views">${['Trace', 'RealityCheck', 'Security', 'Review'].map(tab => `<button data-action="tab" data-id="${tab}" aria-pressed="${state.tab === tab}">${tab}</button>`).join('')}</div>${content}</div>`;
+}
+function runPage() {
+    const r = state.run;
+    if (!r)
+        return runTable(state.runs);
+    const pending = !['COMPLETED', 'BLOCKED', 'FAILED', 'CANCELLED'].includes(r.status);
+    return head(`Evaluation ${r.id.slice(0, 8)}`, `${versionName(r.version_id)} · Native ${String(r.config.benchmark_version)}`, action('All evaluations', 'all-runs')) + `<div class="actions">${badge(r.status)}${r.status === 'QUEUED' && r.config.backend === 'trusted-demo' ? action('Execute native demo', 'execute', true, r.id) : ''}${pending ? action('Cancel run', 'cancel', false, r.id) : ''}${action('Refresh', 'refresh-run', false, r.id)}${action('Save evidence artifact', 'artifact', false, r.id)}<a href="/api/v1/runs/${e(r.id)}/report.json">Export JSON</a><a href="/api/v1/runs/${e(r.id)}/report.html">Export HTML</a></div><div class="notice">${e(r.config.execution_label)} · ${r.progress.completed} / ${r.progress.total} attempts recorded. Seed ${e(r.config.seed)} · ${e(r.config.trials)} trial(s).</div><div class="progress" role="progressbar" aria-label="Evaluation progress" aria-valuemin="0" aria-valuemax="${r.progress.total}" aria-valuenow="${r.progress.completed}"><span style="width:${r.progress.total ? r.progress.completed / r.progress.total * 100 : 0}%"></span></div><div class="metrics">${metric('Task success', formatPercent(r.summary.task_success_rate), 'Scored attempts only')}${metric('P95 latency', ms(r.summary.latency_p95_ms), 'Measured execution duration')}${metric('Critical findings', r.summary.critical_security_findings !== undefined ? String(r.summary.critical_security_findings) : 'Unavailable', 'Confirmed synthetic findings')}${metric('Token usage', 'Unavailable', 'No model invoked')}</div><div class="split"><div>${attemptsTable(r)}<section class="panel"><h2>Execution transitions</h2>${pretty(r.transitions)}${Object.keys(r.failure_clusters ?? {}).length ? `<h3>Failure groups</h3>${pretty(r.failure_clusters)}` : ''}</section></div><div>${inspector()}</div></div><div class="panel"><h2>Release readiness</h2><p class="muted small">Missing coverage, reviews or measured cost can make the result inconclusive.</p><form data-form="gate"><label>Versioned policy<select name="policy"><option value="">Default native smoke policy</option>${state.policies.map(p => `<option value="${e(p.id)}">${e(p.name)} · v${e(p.version)}</option>`).join('')}</select></label><button class="primary">Evaluate release policy</button></form><div id="gate-result"></div></div>`;
+}
+function comparisonsPage() { const completed = state.runs.filter(r => r.status === 'COMPLETED'); const opts = completed.map(r => `<option value="${e(r.id)}">${e(versionName(r.version_id))} · ${e(r.id.slice(0, 8))}</option>`).join(''); return head('Comparisons', 'Paired scenarios and recorded configurations determine compatibility.', action('New evaluation', 'new-run', true)) + (completed.length < 2 ? empty('Two completed runs are required', 'Run an accurate version and a regressed version against the same scenario set.') : `<form data-form="compare"><div class="form-row"><label>Baseline<select name="baseline">${opts}</select></label><label>Candidate<select name="candidate">${opts}</select></label></div><button class="primary">Compare runs</button></form>${state.comparison ? `<section class="panel"><h2>Paired comparison</h2>${state.comparison.compatible ? `<div class="metrics">${metric('Success difference', formatPercent(state.comparison.success_delta), 'Candidate minus baseline')}${metric('Regressions', String(state.comparison.regressions), 'Baseline passed, candidate failed')}${metric('Paired attempts', String(state.comparison.sample_size), 'Matched scenario and trial')}${metric('Significant at 95%', state.comparison.statistically_significant_95 ? 'Yes' : 'No', 'Exact paired test')}</div>` : ''}${pretty(state.comparison)}</section>` : ''}`); }
+function settingsPage() { return head('Settings', 'Workspace membership, policies and audit history.', action('Create workspace', 'new-workspace', true)) + `<section class="panel"><h2>Organization</h2><p>${e(state.me?.organizations.find(o => o.id === state.workspace?.org_id)?.name)} · ${e(state.me?.organizations.find(o => o.id === state.workspace?.org_id)?.role)}</p><form data-form="member"><div class="form-row"><label>Registered member email<input name="email" type="email" required></label><label>Role<select name="role"><option>viewer</option><option>developer</option><option>admin</option></select></label></div><button>Add member</button></form><div class="actions" style="margin-top:16px">${action('View members', 'members')}${action('View audit log', 'audit')}${action('Create organization', 'new-org')}</div><div id="settings-result"></div></section><section class="panel"><div class="page-head"><h2>Release policies</h2>${action('Create policy version', 'new-policy', true)}</div>${state.policies.length ? pretty(state.policies) : '<p class="muted">No project policies. The default native smoke policy requires eight attempts, 80% success and zero critical findings.</p>'}</section><section class="panel"><div class="page-head"><h2>Evaluation datasets</h2>${action('Create dataset', 'new-dataset')}</div>${state.datasets.length ? pretty(state.datasets) : '<p class="muted">Create immutable subsets of native scenarios.</p>'}</section><section class="panel"><h2>Appearance</h2>${action('Toggle light / dark', 'theme')}<h3>API reference</h3><a href="/docs" target="_blank" rel="noopener">Open interactive API documentation</a></section>`; }
+function content() {
+    if (state.run && ['Evaluations', 'RealityCheck', 'Security', 'Reports'].includes(state.view))
+        return runPage();
+    switch (state.view) {
+        case 'Overview': return overview();
+        case 'Projects': return projectPage();
+        case 'Agents': return agentsPage();
+        case 'Benchmarks': return benchmarksPage();
+        case 'Comparisons': return comparisonsPage();
+        case 'Settings': return settingsPage();
+        default: return head(state.view, state.view === 'Reports' ? 'Select a run to download redacted JSON or HTML evidence.' : state.view === 'RealityCheck' ? 'Inspect ground truth, final state, trusted claims and reviewer decisions.' : state.view === 'Security' ? 'Inspect confirmed findings and explicit check coverage.' : 'Monitor recorded jobs and investigate scenario failures.', action('New evaluation', 'new-run', true)) + runTable(state.runs);
+    }
+}
+function render() {
+    const root = document.getElementById('app');
+    if (!root)
+        return;
+    if (!state.me) {
+        root.innerHTML = `<main id="main" class="auth">${brand}<h1>${authMode === 'login' ? 'Sign in to Preflight' : 'Create your account'}</h1><p class="muted">Self-hosted agent evaluation. Native demos run without paid APIs.</p>${state.error ? `<div class="error" role="alert">${e(state.error)}</div>` : ''}<form data-form="auth"><label>Email<input type="email" name="email" required autocomplete="email"></label><label>Password<input type="password" name="password" required minlength="12" maxlength="128" autocomplete="${authMode === 'login' ? 'current-password' : 'new-password'}"></label><span class="muted small">Use a private passphrase with at least 12 characters.</span><button class="primary">${authMode === 'login' ? 'Sign in' : 'Create account'}</button></form><p style="margin-top:24px">${action(authMode === 'login' ? 'Create a new account' : 'Use an existing account', 'auth-mode')}</p></main>`;
+        return;
+    }
+    root.innerHTML = `<div class="shell"><aside class="sidebar">${brand}<div><div class="subtitle">Workspace</div><p class="small">${e(state.workspace?.name ?? 'Select a workspace')}</p></div><nav aria-label="Main navigation">${nav.map(v => `<a href="#${v.toLowerCase()}" data-nav="${v}" ${state.view === v ? 'aria-current="page"' : ''}>${v}</a>`).join('')}</nav><div class="side-bottom"><span class="muted">Self-hosted · Native fixtures</span>${action('Toggle theme', 'theme')}${action('Sign out', 'logout')}</div></aside><div><header class="topbar"><label class="sr-only" for="workspace-select">Workspace</label><select id="workspace-select" aria-label="Workspace">${state.workspaces.map(w => `<option value="${e(w.id)}" ${w.id === state.workspace?.id ? 'selected' : ''}>${e(w.name)}</option>`).join('')}</select><span class="muted">/</span><select id="project-select" aria-label="Project"><option value="">Choose project</option>${state.projects.map(p => `<option value="${e(p.id)}" ${p.id === state.project?.id ? 'selected' : ''}>${e(p.name)}</option>`).join('')}</select><div class="spacer"></div><span class="user">${e(state.me.email)}</span>${action('Sign out', 'logout')}</header><main id="main" tabindex="-1">${state.error ? `<div class="error" role="alert">${e(state.error)}</div>` : ''}${content()}</main></div></div>`;
+}
+async function loadProject() { state.run = undefined; state.attempt = undefined; state.comparison = undefined; if (state.project) {
+    const id = state.project.id;
+    [state.agents, state.runs, state.policies, state.datasets] = await Promise.all([api(`/projects/${id}/agents`), api(`/projects/${id}/runs`), api(`/projects/${id}/policies`), api(`/projects/${id}/datasets`)]);
+}
+else {
+    state.agents = [];
+    state.runs = [];
+    state.policies = [];
+    state.datasets = [];
+} render(); }
+async function loadWorkspace() { if (state.workspace) {
+    state.projects = await api(`/workspaces/${state.workspace.id}/projects`);
+    state.project = state.projects[0];
+} await loadProject(); }
+async function initialize() { state.me = await api('/auth/me'); [state.workspaces, state.benchmarks] = await Promise.all([api('/workspaces'), api('/benchmarks')]); state.workspace = state.workspaces[0]; await loadWorkspace(); }
+function modeOptions() { return ['accurate', 'regressed', 'unsafe', 'slow', 'false-completion'].map(m => `<option value="${m}">${m}</option>`).join(''); }
+function showDialog(title, form) { const d = document.getElementById('dialog'); d.innerHTML = `<header><h2 id="dialog-title">${e(title)}</h2>${action('Close', 'close-dialog')}</header><div id="dialog-error" role="alert"></div>${form}`; d.showModal(); }
+function formWrap(name, body, button) { return `<form data-form="${name}">${body}<button class="primary">${e(button)}</button></form>`; }
+function openForm(kind, id) {
+    if (['new-agent', 'new-run', 'new-policy', 'new-dataset'].includes(kind) && !state.project)
+        throw new Error('Create or select a project first.');
+    if (kind === 'new-project')
+        showDialog('Create project', formWrap('project', '<label>Project name<input name="name" required maxlength="120" placeholder="Customer service agent"></label>', 'Create project'));
+    if (kind === 'new-agent')
+        showDialog('Connect native agent', formWrap('agent', '<p class="muted small">Offline demonstration agent. SDK framework adapters are separate Python integrations.</p><label>Agent name<input name="name" required maxlength="120"></label><label>Description<textarea name="description" maxlength="2000"></textarea></label><div class="form-row"><label>Version<input name="version" value="1.0.0" required maxlength="60"></label><label>Behavior<select name="mode">' + modeOptions() + '</select></label></div>', 'Connect agent'));
+    if (kind === 'new-version')
+        showDialog('Add immutable version', formWrap('version', `<input type="hidden" name="agent" value="${e(id)}"><label>Version name<input name="version" required maxlength="60"></label><label>Behavior<select name="mode">${modeOptions()}</select></label>`, 'Add version'));
+    if (kind === 'new-dataset') {
+        const scenarios = state.benchmarks.find(b => b.id === 'native')?.scenarios ?? [];
+        showDialog('Create immutable dataset', formWrap('dataset', `<label>Dataset name<input name="name" required maxlength="120"></label><fieldset><legend>Native scenarios</legend>${scenarios.map(s => `<label class="check"><input type="checkbox" name="scenarios" value="${e(s.id)}" checked>${e(s.name)}</label>`).join('')}</fieldset>`, 'Create dataset'));
+    }
+    if (kind === 'new-run') {
+        if (!state.agents.length)
+            throw new Error('Connect a native agent before starting an evaluation.');
+        const versions = state.agents.flatMap(a => a.versions.map(v => `<option value="${e(v.id)}">${e(a.name)} · ${e(v.version)} · ${e(v.config.mode)}</option>`)).join('');
+        const scenarios = state.benchmarks.find(b => b.id === 'native')?.scenarios ?? [];
+        showDialog('New evaluation', formWrap('run', `<label>Agent version<select name="version_id">${versions}</select></label><label>Dataset<select name="dataset_id"><option value="">Use selected scenarios below</option>${state.datasets.map(d => `<option value="${e(d.id)}">${e(d.name)}</option>`).join('')}</select></label><label>Execution backend<select name="backend"><option value="trusted-demo">Trusted native demo (no container)</option><option value="docker">Restricted Docker (operator worker required)</option></select></label><div class="form-row"><label>Trials per scenario<input type="number" name="trials" value="1" min="1" max="8" required></label><label>Random seed<input type="number" name="seed" value="42" min="0" max="2147483647" required></label></div><label>Run timeout (seconds)<input name="timeout_seconds" type="number" value="30" min="1" max="120" required></label><fieldset><legend>Native suite · v1.0.0</legend>${scenarios.map(s => `<label class="check"><input type="checkbox" name="scenarios" value="${e(s.id)}" checked>${e(s.name)}</label>`).join('')}</fieldset>`, 'Queue evaluation'));
+    }
+    if (kind === 'new-workspace')
+        showDialog('Create workspace', formWrap('workspace', '<label>Workspace name<input name="name" required maxlength="120"></label>', 'Create workspace'));
+    if (kind === 'new-org')
+        showDialog('Create organization', formWrap('org', '<label>Organization name<input name="name" required maxlength="120"></label>', 'Create organization'));
+    if (kind === 'new-policy')
+        showDialog('Create release policy version', formWrap('policy', '<label>Policy name<input name="name" required maxlength="120" value="Production"></label><div class="form-row"><label>Minimum success (0–1)<input name="min_success" type="number" value="0.8" min="0" max="1" step=".01" required></label><label>Minimum samples<input name="min_samples" type="number" value="8" min="1" required></label><label>Maximum P95 latency (ms)<input name="max_latency_ms" type="number" value="1000" min="1" required></label><label>Required reviews<input name="required_reviews" type="number" value="0" min="0" required></label></div><p class="muted small">Zero critical findings required. Advanced configuration is available through the API.</p>', 'Create policy version'));
+}
+async function openRun(id) { const previousAttempt = state.attempt?.id; state.run = await api(`/runs/${id}`); state.attempt = state.run.attempts?.find(a => a.id === previousAttempt) ?? state.run.attempts?.[0]; state.view = 'Evaluations'; render(); if (poll)
+    clearTimeout(poll); if (!['COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED'].includes(state.run.status)) {
+    poll = setTimeout(() => { void openRun(id).catch(showError); }, 2000);
+} }
+function showError(error) { state.error = error instanceof Error ? error.message : 'Unexpected error'; const d = document.getElementById('dialog'); if (d?.open) {
+    const n = document.getElementById('dialog-error');
+    if (n)
+        n.innerHTML = `<div class="error">${e(state.error)}</div>`;
+}
+else
+    render(); }
+async function handleAction(act, id) {
+    state.error = '';
+    if (act.startsWith('new-')) {
+        openForm(act, id);
+        return;
+    }
+    if (act === 'close-dialog') {
+        document.getElementById('dialog').close();
+        return;
+    }
+    if (act === 'auth-mode') {
+        authMode = authMode === 'login' ? 'register' : 'login';
+        render();
+        return;
+    }
+    if (act === 'theme') {
+        document.documentElement.classList.toggle('theme-dark');
+        localStorage.setItem('preflight-theme', document.documentElement.classList.contains('theme-dark') ? 'dark' : 'light');
+        return;
+    }
+    if (act === 'logout') {
+        await api('/auth/logout', {});
+        state.me = undefined;
+        state.run = undefined;
+        if (poll)
+            clearTimeout(poll);
+        render();
+        return;
+    }
+    if (act === 'project') {
+        state.project = state.projects.find(p => p.id === id);
+        state.view = 'Overview';
+        await loadProject();
+        return;
+    }
+    if (act === 'run' || act === 'refresh-run') {
+        await openRun(id);
+        return;
+    }
+    if (act === 'all-runs') {
+        state.run = undefined;
+        state.attempt = undefined;
+        if (poll)
+            clearTimeout(poll);
+        await loadProject();
+        return;
+    }
+    if (act === 'attempt') {
+        state.attempt = state.run?.attempts?.find(a => a.id === id);
+        render();
+        return;
+    }
+    if (act === 'tab') {
+        state.tab = id;
+        render();
+        return;
+    }
+    if (act === 'execute') {
+        announce('Executing selected native scenarios…');
+        await api(`/runs/${id}/execute`, {});
+        await loadRuns();
+        await openRun(id);
+        announce('Evaluation evidence recorded.');
+        return;
+    }
+    if (act === 'cancel') {
+        await api(`/runs/${id}/cancel`, {});
+        await loadRuns();
+        await openRun(id);
+        return;
+    }
+    if (act === 'artifact') {
+        const result = await api(`/runs/${id}/artifacts`, {});
+        announce(`Evidence artifact saved: ${result.id.slice(0, 8)}`);
+        return;
+    }
+    if (act === 'replay') {
+        const result = await api(`/runs/${state.run?.id}/replay/${id}`, {});
+        announce(result.matches ? 'Replay reproduced the final broker state.' : 'Replay differs from captured state.');
+        return;
+    }
+    if (act === 'members' || act === 'audit') {
+        const result = await api(`/organizations/${state.workspace?.org_id}/${act}`);
+        const node = document.getElementById('settings-result');
+        if (node)
+            node.innerHTML = pretty(result);
+    }
+}
+async function loadRuns() { if (state.project)
+    state.runs = await api(`/projects/${state.project.id}/runs`); }
+async function submit(form) {
+    const kind = form.dataset.form;
+    const data = new FormData(form);
+    const val = (key) => String(data.get(key) ?? '');
+    const p = state.project?.id;
+    const d = document.getElementById('dialog');
+    if (kind === 'auth') {
+        const result = await api(`/auth/${authMode}`, { email: val('email'), password: val('password') });
+        state.me = result;
+        await initialize();
+        return;
+    }
+    if (kind === 'project') {
+        const project = await api(`/workspaces/${state.workspace?.id}/projects`, { name: val('name') });
+        d.close();
+        state.projects.push(project);
+        state.project = project;
+        state.view = 'Overview';
+        await loadProject();
+        return;
+    }
+    if (kind === 'agent') {
+        await api(`/projects/${p}/agents`, { name: val('name'), description: val('description'), framework: 'native', version: val('version'), config: { mode: val('mode') } });
+        d.close();
+        state.view = 'Agents';
+        await loadProject();
+        return;
+    }
+    if (kind === 'version') {
+        await api(`/agents/${val('agent')}/versions`, { version: val('version'), config: { mode: val('mode') } });
+        d.close();
+        await loadProject();
+        return;
+    }
+    if (kind === 'dataset') {
+        const ids = data.getAll('scenarios').map(String);
+        await api(`/projects/${p}/datasets`, { name: val('name'), scenario_ids: ids });
+        d.close();
+        await loadProject();
+        return;
+    }
+    if (kind === 'run') {
+        const scenarios = data.getAll('scenarios').map(String);
+        if (!scenarios.length)
+            throw new Error('Select at least one scenario.');
+        const run = await api(`/projects/${p}/runs`, { version_id: val('version_id'), idempotency_key: crypto.randomUUID(), trials: Number(val('trials')), seed: Number(val('seed')), timeout_seconds: Number(val('timeout_seconds')), backend: val('backend'), dataset_id: val('dataset_id') || null, scenarios });
+        d.close();
+        await loadRuns();
+        await openRun(run.id);
+        return;
+    }
+    if (kind === 'compare') {
+        if (val('baseline') === val('candidate'))
+            throw new Error('Choose different baseline and candidate runs.');
+        state.comparison = await api(`/comparisons?baseline=${encodeURIComponent(val('baseline'))}&candidate=${encodeURIComponent(val('candidate'))}`);
+        render();
+        return;
+    }
+    if (kind === 'gate') {
+        const result = await api(`/runs/${state.run?.id}/release`, { policy_id: val('policy') || null });
+        const node = document.getElementById('gate-result');
+        if (node)
+            node.innerHTML = `<section class="notice" role="status">${badge(result.decision)}${pretty(result)}</section>`;
+        return;
+    }
+    if (kind === 'review') {
+        await api(`/runs/${state.run?.id}/attempts/${val('attempt')}/reviews`, { outcome: val('outcome'), justification: val('justification') });
+        announce('Review recorded with audit history.');
+        return;
+    }
+    if (kind === 'workspace') {
+        const w = await api(`/organizations/${state.workspace?.org_id}/workspaces`, { name: val('name') });
+        d.close();
+        state.workspaces.push(w);
+        state.workspace = w;
+        await loadWorkspace();
+        return;
+    }
+    if (kind === 'org') {
+        const org = await api('/organizations', { name: val('name') });
+        await api(`/organizations/${org.id}/workspaces`, { name: 'Default workspace' });
+        d.close();
+        await initialize();
+        return;
+    }
+    if (kind === 'member') {
+        await api(`/organizations/${state.workspace?.org_id}/members`, { email: val('email'), role: val('role') });
+        announce('Organization member added.');
+        return;
+    }
+    if (kind === 'policy') {
+        await api(`/projects/${p}/policies`, { name: val('name'), config: { min_success: Number(val('min_success')), min_samples: Number(val('min_samples')), max_latency_ms: Number(val('max_latency_ms')), required_reviews: Number(val('required_reviews')) } });
+        d.close();
+        await loadProject();
+        return;
+    }
+}
+async function boot() {
+    if (localStorage.getItem('preflight-theme') === 'dark')
+        document.documentElement.classList.add('theme-dark');
+    document.addEventListener('click', event => { const target = event.target; const link = target.closest('[data-nav]'); if (link) {
+        event.preventDefault();
+        state.view = link.dataset.nav ?? 'Overview';
+        state.error = '';
+        if (poll)
+            clearTimeout(poll);
+        if (!['Evaluations', 'RealityCheck', 'Security', 'Reports'].includes(state.view)) {
+            state.run = undefined;
+            state.attempt = undefined;
+        }
+        if (state.view === 'RealityCheck')
+            state.tab = 'RealityCheck';
+        if (state.view === 'Security')
+            state.tab = 'Security';
+        render();
+        document.getElementById('main')?.focus();
+        return;
+    } const button = target.closest('[data-action]'); if (button) {
+        button.disabled = true;
+        void handleAction(button.dataset.action ?? '', button.dataset.id ?? '').catch(showError).finally(() => { button.disabled = false; });
+    } });
+    document.addEventListener('submit', event => { const form = event.target; if (!form.dataset.form)
+        return; event.preventDefault(); state.error = ''; const button = form.querySelector('button[type=submit],button.primary,button'); if (button)
+        button.disabled = true; void submit(form).catch(showError).finally(() => { if (button)
+        button.disabled = false; }); });
+    document.addEventListener('change', event => { const target = event.target; if (target.id === 'workspace-select') {
+        state.workspace = state.workspaces.find(w => w.id === target.value);
+        void loadWorkspace().catch(showError);
+    } if (target.id === 'project-select') {
+        state.project = state.projects.find(p => p.id === target.value);
+        void loadProject().catch(showError);
+    } });
+    render();
+    try {
+        await initialize();
+    }
+    catch {
+        state.me = undefined;
+        render();
+    }
+}
+if (typeof document !== 'undefined')
+    void boot();
