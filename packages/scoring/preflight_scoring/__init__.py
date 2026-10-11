@@ -53,7 +53,7 @@ def wilson(successes, n):
 
 
 def aggregate(results):
-    scored = [r for r in results if r.get("kind") != "infrastructure"]
+    scored = [r for r in results if r.get("kind") != "infrastructure" and r["assessment"]["task_success"] is not None]
     success = sum(r["assessment"]["task_success"] for r in scored)
     latencies = sorted(r["latency_ms"] for r in scored)
     findings = [f for r in scored for f in r["security_findings"]]
@@ -61,7 +61,7 @@ def aggregate(results):
     for item in scored:
         by_scenario.setdefault(item["scenario_id"], []).append(item["assessment"]["task_success"])
     independent_successes = sum(all(values) for values in by_scenario.values())
-    return {"sample_size": len(scored), "infrastructure_failures": len(results)-len(scored), "task_success_rate": success/len(scored) if scored else None, "successes": success, "effective_sample_size": len(by_scenario), "confidence_interval_95": wilson(independent_successes,len(by_scenario)), "confidence_interval_unit": "Distinct scenario passed every recorded trial; deterministic repetitions are not independent samples", "latency_mean_ms": statistics.mean(latencies) if latencies else None, "latency_p95_ms": latencies[max(0, math.ceil(.95*len(latencies))-1)] if latencies else None, "critical_security_findings": sum(f["severity"] == "critical" and f["confidence"] == "confirmed" for f in findings), "security_findings": len(findings), "token_usage": None, "estimated_cost": None, "usage_note": "No model invoked; token usage and API cost unavailable, not synthetic measurements."}
+    return {"sample_size": len(scored), "infrastructure_failures": sum(r.get("kind")=="infrastructure" for r in results), "unassessed_attempts": sum(r.get("kind")!="infrastructure" and r["assessment"]["task_success"] is None for r in results), "task_success_rate": success/len(scored) if scored else None, "successes": success, "effective_sample_size": len(by_scenario), "confidence_interval_95": wilson(independent_successes,len(by_scenario)), "confidence_interval_unit": "Distinct scenario passed every recorded trial; deterministic repetitions are not independent samples", "latency_mean_ms": statistics.mean(latencies) if latencies else None, "latency_p95_ms": latencies[max(0, math.ceil(.95*len(latencies))-1)] if latencies else None, "critical_security_findings": sum(f["severity"] == "critical" and f["confidence"] == "confirmed" for f in findings), "security_findings": len(findings), "token_usage": None, "estimated_cost": None, "usage_note": "Token usage and API cost unavailable unless explicitly reported; no synthetic measurements."}
 
 
 def compare_runs(left, right):
@@ -70,7 +70,7 @@ def compare_runs(left, right):
     if incompatible:
         return {"compatible": False, "reason": "Different evaluation configurations", "fields": incompatible}
     def keyed(run):
-        return {(a["scenario_id"], a["trial"]): a["result"] for a in run["attempts"] if a["result"].get("kind") != "infrastructure"}
+        return {(a["scenario_id"], a["trial"]): a["result"] for a in run["attempts"] if a["result"].get("kind") != "infrastructure" and a["result"]["assessment"]["task_success"] is not None}
     l, r = keyed(left), keyed(right)
     if set(l) != set(r) or not l:
         return {"compatible": False, "reason": "Missing or infrastructure-failed paired attempts"}
@@ -95,6 +95,8 @@ def release_decision(summary, config, policy, reviews=0, comparison=None, run_st
     reasons, missing = [], []
     if run_status != "COMPLETED":
         missing.append("Run has not completed")
+    if summary.get("unassessed_attempts",0):
+        missing.append("Accuracy evidence is inconclusive for selected attempts")
     if summary.get("infrastructure_failures", 0):
         missing.append("Infrastructure failures leave evaluation coverage incomplete")
     if summary.get("effective_sample_size", summary.get("sample_size", 0)) < policy["min_samples"]:

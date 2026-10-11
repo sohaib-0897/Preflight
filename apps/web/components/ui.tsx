@@ -1,6 +1,6 @@
 'use client';
 import * as Dialog from '@radix-ui/react-dialog';
-import { useState, type ReactNode } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,5 +26,5 @@ export function Form({spec,onDone}:{spec:FormSpec;onDone:()=>void}) {
   <button className="primary" disabled={isSubmitting}>{isSubmitting?'Saving…':spec.title}</button>
  </form>;
 }
-export function Modal({spec,close}:{spec:FormSpec|null;close:()=>void}) {return <Dialog.Root open={Boolean(spec)} onOpenChange={open=>{if(!open)close();}}><Dialog.Portal><Dialog.Overlay className="overlay"/><Dialog.Content className="dialog" aria-describedby={undefined}><Dialog.Title>{spec?.title}</Dialog.Title><Dialog.Close className="dialog-close" aria-label="Close dialog">×</Dialog.Close>{spec&&<Form key={spec.title} spec={spec} onDone={close}/>}</Dialog.Content></Dialog.Portal></Dialog.Root>;}
+export function Modal({spec,close}:{spec:FormSpec|null;close:()=>void}) {const opener=useRef<HTMLElement|null>(null);return <Dialog.Root open={Boolean(spec)} onOpenChange={open=>{if(!open)close();}}><Dialog.Portal><Dialog.Overlay className="overlay"/><Dialog.Content className="dialog" aria-describedby={undefined} onOpenAutoFocus={()=>{opener.current=document.activeElement instanceof HTMLElement?document.activeElement:null;}} onCloseAutoFocus={event=>{event.preventDefault();const target=opener.current;if(target?.isConnected&&!target.hasAttribute('disabled'))target.focus({preventScroll:true});else {const main=document.getElementById('main');if(main){main.tabIndex=-1;main.focus({preventScroll:true});}}}}><Dialog.Title>{spec?.title}</Dialog.Title><Dialog.Close className="dialog-close" aria-label="Close dialog">×</Dialog.Close>{spec&&<Form key={spec.title} spec={spec} onDone={close}/>}</Dialog.Content></Dialog.Portal></Dialog.Root>;}
 export function Table({caption,columns,rows}:{caption:string;columns:string[];rows:ReactNode[][]}) {return <div className="table-wrap"><table><caption>{caption}</caption><thead><tr>{columns.map(c=><th scope="col" key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j}>{cell}</td>)}</tr>)}</tbody></table>{!rows.length&&<p className="muted empty-row">No matching records.</p>}</div>;}

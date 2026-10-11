@@ -1,3 +1,7 @@
+## Deterministic configurable RealityCheck
+
+Captured fixture rows support SQL assertions in an in-memory read-only database with SQLite authorization and a VM-step budget, never the application/host database. Unknown evidence remains INCONCLUSIVE and unassessed attempts are excluded from accuracy denominators. Immutable project sources and dataset fingerprints preserve provenance. Supplemental assessments append evidence; release score changes require explicit configured assertions or justified human overrides.
+
 ## Official offline integration boundary
 
 τ³ is installed as upstream package `tau2`, pinned to v1.0.1 commit fc0055dc4e0a316c3f83133267fbd6faaa770992. Its ENV scorer and AgentDojo banking utility scorer execute unchanged. Optional fixed trusted scripted-agent presets are exposed separately from general agent/model benchmarking. Environment-assertion cases can raise upstream exceptions on missing state; the verified tau create_task_1 DB-scoring case supplies both pass and fail evidence without inventing a score from exceptions. Full hosted/adversarial suites remain independently unverified.

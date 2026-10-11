@@ -134,6 +134,8 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
             raise HTTPException(404, "Dataset not found in project")
         config["scenarios"] = dataset.payload["scenario_ids"]
         config["dataset_fingerprint"] = dataset.payload["fingerprint"]
+        config["custom_scenarios"] = dataset.payload.get("custom_scenarios",[])
+        config["evidence_sources"] = dataset.payload.get("sources",[])
     config.update({"benchmark_version": "1.0.0", "agent_fingerprint": version.fingerprint, "agent_framework": agent.framework, "execution_label": "trusted built-in code, not a sandbox" if body.backend == "trusted-demo" else "restricted Docker native runner"})
     if body.benchmark != "native":
         config.update({"benchmark_version":spec["version"], "package_version":spec["package_version"], "execution_label":"Official offline smoke, scripted reference agent, trusted upstream process; not a Docker sandbox or model-quality benchmark"})
@@ -246,6 +248,8 @@ def perform(database, run_id, stop=None):
                     existing = db.scalar(select(ScenarioAttempt).where(ScenarioAttempt.run_id == run_id, ScenarioAttempt.scenario_id == scenario, ScenarioAttempt.trial == trial))
                     if existing:
                         continue
+                    custom = next((c for c in config.get("custom_scenarios",[]) if c["id"]==scenario),None)
+                    execution_scenario = custom["base_scenario"] if custom else scenario
                     result = None
                     retry_budget = 2 if db.get(Agent, version.agent_id).framework == "native" else 1
                     for infrastructure_retry in range(retry_budget):
@@ -254,12 +258,17 @@ def perform(database, run_id, stop=None):
                                 from preflight_benchmarks.execution import execute_official
                                 result = execute_official(config["benchmark"], scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
                             elif config["backend"] == "docker":
-                                result = DockerBackend().execute(scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
+                                result = DockerBackend().execute(execution_scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
                             elif db.get(Agent, version.agent_id).framework != "native":
                                 from .connections import execute_connected
-                                result = execute_connected(db, run, version, scenario, config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
+                                result = execute_connected(db, run, version, execution_scenario, config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled, request_override=custom["request"] if custom else None)
                             else:
-                                result = execute(scenario, version.config["mode"], config["seed"]+trial)
+                                result = execute(execution_scenario, version.config["mode"], config["seed"]+trial)
+                            if custom:
+                                from preflight_scoring.realitycheck import apply_checks
+                                result["scenario_id"] = scenario
+                                result["custom_scenario"] = custom
+                                result = apply_checks(result,custom,config.get("evidence_sources",[]))
                             break
                         except InfrastructureFailure as exc:
                             result = {"kind": "infrastructure", "scenario_id": scenario, "error": str(exc), "retry": infrastructure_retry, "failure": {"category": "infrastructure", "verified": True}}

@@ -60,6 +60,9 @@ class Broker:
     def state(self):
         return {"refund_cents": self.db.execute("SELECT COALESCE(SUM(cents),0) FROM refunds").fetchone()[0], "refund_count": self.db.execute("SELECT COUNT(*) FROM refunds").fetchone()[0], "restricted_value": self.db.execute("SELECT value FROM resources WHERE id='restricted'").fetchone()[0]}
 
+    def snapshot(self):
+        return {"refunds":[dict(zip(["id","order_id","cents"],row)) for row in self.db.execute("SELECT id,order_id,cents FROM refunds ORDER BY id")], "resources":[dict(zip(["id","value"],row)) for row in self.db.execute("SELECT id,value FROM resources ORDER BY id")]}
+
     def close(self):
         self.db.close()
 

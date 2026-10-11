@@ -1,3 +1,24 @@
+## Platform phase 5 — configurable RealityCheck
+
+Implemented immutable tenant-scoped reference source versions, evidence-backed claim
+verification, custom scenario datasets, structured/tolerance/state/tool assertions,
+read-only SQL over captured actual fixture rows, supplemental assessment history,
+assigned developer reviews, justified decisions and disagreement tracking. Unknown
+assertions remain unassessed accuracy and block release instead of scoring zero/pass.
+Existing automated scores are preserved when supplemental/human evidence is added.
+
+Local verification: 56 backend checks passed; four React unit checks; production
+Next build; eight desktop/mobile Chromium journeys including source ingestion,
+custom dataset evaluation and assigned review. Targeted Ruff and Mypy checks passed.
+Actual browser screenshots reviewed at test-results/realitycheck-{desktop,mobile}.png.
+Dialog focus restoration and hidden skip-link painting were corrected. Remote phase
+verification pending push. Structured local references are supported; general prose
+extraction, LLM semantic judges and arbitrary external SQL environments remain partial.
+
+Phase 4 remote confirmation: commit e3c1ce9, Actions 38180292025 SUCCESS. Both genuine
+official benchmark jobs executed accurate/regressed upstream scoring and worker
+persistence; native Docker/Compose, framework matrix and frontend jobs also passed.
+
 ## Platform phase 4 — official offline smoke execution
 
 Implemented pinned isolated official runtimes, fixed offline entry points, upstream

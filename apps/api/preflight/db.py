@@ -188,6 +188,29 @@ class Credential(Base):
     created_at: Mapped[str] = mapped_column(String, default=now)
 
 
+class EvidenceSource(Base):
+    __tablename__ = "evidence_sources"
+    __table_args__ = (UniqueConstraint("project_id", "name", "version"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    version: Mapped[int] = mapped_column(Integer)
+    uri: Mapped[str] = mapped_column(String(2048))
+    facts: Mapped[dict] = mapped_column(JSON)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[str] = mapped_column(String, default=now)
+
+
+class ReviewAssignment(Base):
+    __tablename__ = "review_assignments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    attempt_id: Mapped[str] = mapped_column(ForeignKey("scenario_attempts.id"), index=True)
+    reviewer_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    assigned_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(String, default="OPEN")
+    created_at: Mapped[str] = mapped_column(String, default=now)
+
+
 class Database:
     async def readiness(self):
         from sqlalchemy import text

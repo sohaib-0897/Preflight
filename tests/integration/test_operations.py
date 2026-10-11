@@ -17,7 +17,7 @@ def test_migration_round_trip(tmp_path, monkeypatch):
     config = Config("alembic.ini")
     command.upgrade(config, "head")
     db = Database(url)
-    assert len(inspect(db.engine).get_table_names()) == 28
+    assert len(inspect(db.engine).get_table_names()) == 30
     command.check(config)
     command.downgrade(config, "base")
     assert inspect(db.engine).get_table_names() == ["alembic_version"]

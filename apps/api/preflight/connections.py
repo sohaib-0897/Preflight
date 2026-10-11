@@ -60,12 +60,12 @@ async def health(agent_id: str, user=Depends(current_user), db=Depends(get_db)):
         }
 
 
-def execute_connected(db, run, version, scenario_id, seed, timeout, cancelled=None):
+def execute_connected(db, run, version, scenario_id, seed, timeout, cancelled=None, request_override=None):
     secret = reveal(db, run.project_id, version.config.get("credential_id"))
     scenario = next(s for s in SCENARIOS if s["id"] == scenario_id)
     inputs = {
         "scenario_id": scenario_id,
-        "prompt": scenario["request"],
+        "prompt": request_override or scenario["request"],
         "trace_id": f"{run.id}:{scenario_id}:{seed}",
         "allowed_tools": [
             {
