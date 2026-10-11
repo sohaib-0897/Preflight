@@ -61,4 +61,3 @@ def test_actual_concurrent_duplicate_claim_and_worker_stop(client, app, monkeypa
 def test_async_database_readiness_uses_real_driver(app):
     app.state.db.initialize()
     assert asyncio.run(app.state.db.readiness()) == 1
-

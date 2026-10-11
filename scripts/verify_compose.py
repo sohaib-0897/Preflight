@@ -63,7 +63,20 @@ def main():
         assert all(a["result"]["events"] for a in result["attempts"])
         assert [t["current"] for t in result["transitions"]] == [
             "QUEUED", "PREPARING", "RUNNING", "SCORING", "COMPLETED"]
-        command("exec", "-T", "api", "python", "-c", "import asyncio; from preflight.arq_worker import settings; from arq.connections import create_pool; from arq.jobs import Job; " + "exec('async def check():\n pool = await create_pool(settings())\n result = await Job(\"preflight-" + run["id"] + "\",pool).result(timeout=5)\n assert result is True\n await pool.aclose()\n'); asyncio.run(check())")
+        probe = "\n".join([
+            "import asyncio",
+            "from preflight.arq_worker import settings",
+            "from arq.connections import create_pool",
+            "from arq.jobs import Job",
+            "async def check():",
+            "    pool = await create_pool(settings())",
+            f"    result = await Job({'preflight-' + run['id']!r}, pool).result(timeout=5)",
+            "    assert result is True",
+            "    await pool.aclose()",
+            "asyncio.run(check())",
+        ])
+        compile(probe, "compose-arq-probe", "exec")
+        command("exec", "-T", "api", "python", "-c", probe)
         command("restart", "worker")
         assert request(f'/runs/{run["id"]}')["summary"] == result["summary"]
         print("Compose verified: healthy PostgreSQL/Redis/API, migrations without drift, "
