@@ -3,19 +3,19 @@
 Local path: `/home/sohaib/Desktop/Preflight`.
 Configured remote: https://github.com/sohaib-0897/Preflight.
 Branch: `main`. Published initial commit: `6f6b043a617422a34bd3e74341eca2458943a8cc`.
-Existing Git identity and GitHub authentication are available. Infrastructure/CI repairs are in progress; current verification is recorded in [VERIFICATION.md](VERIFICATION.md).
+Existing Git identity and GitHub authentication are available. Infrastructure/CI repairs are verified on GitHub Actions at `1ddd13d4b82d1105ebb05bf95f8c77dcf04bda57` ([successful run](https://github.com/sohaib-0897/Preflight/actions/runs/38175877115)); current verification is recorded in [VERIFICATION.md](VERIFICATION.md).
 
 Docker client/Compose work, but this Codex process lacks permission on the root:docker daemon socket. The user reports a successful hello-world in an ordinary terminal. Local containers and existing volumes were not modified. GitHub Actions provides the permitted live verification environment.
 
 The executable deliverable is a native agent evaluation platform with an actual FastAPI service, SQLAlchemy/SQLite persistence, 26 relational application tables, authentication/organizations/roles, an enforcing broker, eight offline scenarios, durable workers, immutable datasets/versions/policies, RealityCheck/security evidence, traces/replay/comparisons, reviews/gates and artifact/report exports. The compiled TypeScript interface uses those APIs. See phase-by-phase PROGRESS.md; all areas with missing verification are explicitly partial.
 
-Verification this session: 42 backend tests passed; 14 live Docker checks fail their daemon prerequisite locally. Compose configuration validates. Remote CI is being repaired to build the image before mandatory live tests and run real Compose/migration/worker verification. Refer to VERIFICATION.md for final remote evidence.
+Verification this session: remote CI passed all 56 Python tests, including 14 live Docker checks, and frontend checks. Real Compose services, PostgreSQL migrations/drift, Redis health and durable-worker completion/persistence passed on the runner. Locally 42 backend tests pass and 14 Docker prerequisites fail due socket access; four desktop/mobile browser tests pass at an isolated port after test/accessibility repairs. Refer to VERIFICATION.md for evidence and limitations.
 
 ## Start locally
 ```bash
 cd /home/sohaib/Desktop/Preflight
 python3 scripts/demo.py --mode accurate --output .local/report.json
-bash scripts/dev.sh
+bash scripts/dev.sh # optionally PREFLIGHT_PORT=18000 to avoid occupied port 8000
 # Separate ordinary terminal for queued jobs:
 bash scripts/worker.sh
 ```
@@ -28,7 +28,7 @@ docker compose -f infra/compose/compose.yaml up --build
 ```
 Compose uses trusted-demo execution. Its service/worker smoke verification is separate from restricted sandbox tests. Build the sandbox image and configure the host worker as described in docs/security/SANDBOX.md to test restricted native containers. Never mount the Docker socket into agents.
 
-Optional variables: DATABASE_URL, REDIS_URL, PREFLIGHT_COOKIE_SECURE, PREFLIGHT_SANDBOX_IMAGE, PREFLIGHT_ARTIFACT_ROOT, PREFLIGHT_API_ORIGIN; Compose requires POSTGRES_PASSWORD, monitoring requires GRAFANA_PASSWORD. No hosted API key is required or configured.
+Optional variables: PREFLIGHT_PORT, DATABASE_URL, REDIS_URL, PREFLIGHT_COOKIE_SECURE, PREFLIGHT_SANDBOX_IMAGE, PREFLIGHT_ARTIFACT_ROOT, PREFLIGHT_API_ORIGIN; Compose requires POSTGRES_PASSWORD, monitoring requires GRAFANA_PASSWORD. No hosted API key is required or configured.
 
 ## Remaining engineering priorities
 1. Restore Docker access to the Codex session through normal operator procedures if local verification is desired. Do not change socket permissions to bypass controls.

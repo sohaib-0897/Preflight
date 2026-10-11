@@ -1,3 +1,9 @@
+# Infrastructure follow-up — 2026-10-12
+
+Git identity/authentication and publishing now work. GitHub Actions verified the sandbox build, all 56 Python tests (14 live Docker), frontend checks and actual Compose/PostgreSQL/Redis/migrations/durable-worker execution. Four local desktop/mobile browser tests now pass with Chromium sandbox enabled on port 18000. The local Codex process still lacks daemon socket access; no host permissions or existing volumes were changed. Full evidence is in VERIFICATION.md.
+
+The following original implementation record is historical. Broader incomplete features (Next.js stack, async persistence, ARQ runtime, official benchmark execution, framework dispatch, stronger isolation and optional services) remain outside this Docker/CI repair scope.
+
 # Phase status
 Implementation date: 2026-10-10. Local branch main. No existing project files were overwritten. All phase commits/pushes are blocked by absent Git author identity and invalid GitHub CLI authentication. One commit attempt failed before creating a commit; no author was invented. Remote configured to the supplied repository URL.
 

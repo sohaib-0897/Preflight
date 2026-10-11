@@ -15,7 +15,7 @@ export function escapeHtml(value:unknown):string {return String(value??'').repla
 const e = escapeHtml;
 export function formatPercent(value:unknown):string {return typeof value==='number' ? `${(value*100).toFixed(1)}%`:'Unavailable';}
 const ms = (value:unknown):string => typeof value==='number' ? `${value.toFixed(2)} ms`:'Unavailable';
-const pretty = (value:unknown):string => `<pre>${e(JSON.stringify(value,null,2))}</pre>`;
+const pretty = (value:unknown):string => `<pre tabindex="0">${e(JSON.stringify(value,null,2))}</pre>`;
 const brand = '<div class="brand"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2.5"/><path d="M4 5h7M4 21h16" stroke="currentColor" stroke-width="1.5"/></svg>Preflight</div>';
 function badge(status:unknown):string {const s=String(status??'NOT_RUN');return `<span class="badge ${['PASSED','PASS','COMPLETED','AVAILABLE'].includes(s)?'good':['FAILED','FAIL'].includes(s)?'bad':['BLOCKED','INCONCLUSIVE'].includes(s)?'warn':''}">${e(s.replace(/_/g,' '))}</span>`;}
 function announce(message:string):void {const node=document.getElementById('announcement');if(node){node.textContent=message;setTimeout(()=>{node.textContent='';},6000);}}

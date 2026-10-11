@@ -5,7 +5,32 @@
 - Local TypeScript typecheck/build, two frontend utility assertions, pip consistency and compileall passed. Accurate CLI PASS/exit 0 and regressed CLI FAIL/exit 1. Browser test startup blocked by an existing service on port 8000, preserved without modification.
 - Full local Pytest: **42 passed, 14 prerequisite errors**, all errors from live Docker tests. These are failures of access, not passing isolation evidence. Memory/timeout tests now require successful daemon and image checks, preventing startup failures from masquerading as containment.
 - Original published GitHub run [38174859491](https://github.com/sohaib-0897/Preflight/actions/runs/38174859491): five failures because sandbox image was never built. Workflow repaired to build from repository root before the full test suite, then exercise a fresh Compose project.
-- Added real Compose smoke verification: PostgreSQL/Redis/API health, Alembic head/drift, queued durable-worker execution, traces, 16 attempts, persisted results after worker restart. Uses a unique project and ephemeral generated credentials; never removes volumes. First repaired remote run [38175700997](https://github.com/sohaib-0897/Preflight/actions/runs/38175700997) verified the sandbox build and all **56 Python tests (14 live Docker)** plus frontend checks. Its Compose test found a healthy API unreachable through host-published ports on the internal-only network. Added a trusted API ingress bridge; worker/data services remain internal and sandbox networking remains disabled. Retest pending.
+- Added real Compose smoke verification: PostgreSQL/Redis/API health, Alembic head/drift, queued durable-worker execution, traces, 16 attempts, persisted results after worker restart. Uses a unique project and ephemeral generated credentials; never removes volumes. First repaired remote run [38175700997](https://github.com/sohaib-0897/Preflight/actions/runs/38175700997) verified the sandbox build and all **56 Python tests (14 live Docker)** plus frontend checks. Its Compose test found a healthy API unreachable through host-published ports on the internal-only network. Added a trusted API ingress bridge; worker/data services remain internal and sandbox networking remains disabled. Retest [38175877115](https://github.com/sohaib-0897/Preflight/actions/runs/38175877115) **PASSED** at commit `1ddd13d4b82d1105ebb05bf95f8c77dcf04bda57`: both native and frontend jobs succeeded.
+
+
+## Verified infrastructure evidence
+
+| Check | Observed result |
+|---|---|
+| Sandbox root-context build | Passed on GitHub runner; image `preflight-sandbox:0.1.0`, ID `sha256:a443395079e219915606774d275114b61210884bc68098a3e70f0c40fab1ab3c` |
+| Full Python suite on Python 3.12.15 | **56 passed, no skips**, including all 14 live Docker tests |
+| Live isolation tests | Eight actual native scenarios, non-root/read-only/network denial, memory/PID/capability/file limits, OOM exit 137, tmpfs ENOSPC, deadline cleanup, concurrent execution/cleanup |
+| Compose | Fresh isolated project built and started; PostgreSQL, Redis and API healthy |
+| Database | API SELECT 1 succeeds; Alembic `d701ca032ccb (head)` and `No new upgrade operations detected` |
+| Redis | Real `redis-cli ping` returned PONG; ARQ dispatch is not exercised (durable database worker used) |
+| Durable worker | Queued run completed without calling synchronous execute endpoint; 16 attempts, full transitions and traces, 100% fixture task success |
+| Persistence | Completed run summary unchanged after worker restart; volumes preserved, no `down --volumes` |
+| Frontend | GitHub npm clean install, strict typecheck/build and two utility assertions passed |
+| Release gate | Accurate CLI exit 0/PASS; regressed CLI exit 1/FAIL |
+| Local browser suite | Four tests passed on desktop/mobile with real sandboxed Chrome at port 18000: account/project/agent/evaluation, RealityCheck, release policy, JSON export, keyboard checks and axe WCAG checks on result page |
+
+Browser verification uncovered and fixed a CSP-incompatible axe injection method and keyboard-inaccessible scrollable evidence blocks. The app CSP remains unchanged. These representative browser checks are not an exhaustive WCAG certification. Port selection is now configurable without taking over an existing service:
+
+```bash
+PREFLIGHT_PORT=18000 DATABASE_URL=sqlite:///.local/browser-infrastructure.sqlite npm run test:e2e
+```
+
+Remote Docker evidence applies to the GitHub runner, not the inaccessible local daemon. Docker remains a restricted native-demo boundary, not protection sufficient for arbitrary hostile code. No production deployment, paid model invocation or official benchmark execution is claimed. Local logs/screenshots/traces remain ignored in `.local/` and `test-results/`.
 
 The historical matrix below records the earlier environment only; its Docker, Git and publishing blockers have changed as described above. Broader product limitations remain unchanged.
 

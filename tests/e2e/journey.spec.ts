@@ -26,7 +26,8 @@ test('first user runs native evaluation, inspects state and exports evidence',as
  const download=page.waitForEvent('download');
  await page.getByRole('link',{name:'Export JSON'}).click();
  expect((await download).suggestedFilename()).toMatch(/preflight-.*\.json/);
- await page.addScriptTag({content:fs.readFileSync('node_modules/axe-core/axe.min.js','utf8')});
+ // Inject through the test runner's execution context; keep the application's CSP intact.
+ await page.evaluate(fs.readFileSync('node_modules/axe-core/axe.min.js','utf8'));
  const violations=await page.evaluate(async()=>{return (await (window as any).axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations;});
  expect(violations).toEqual([]);
  await page.keyboard.press('Tab');
