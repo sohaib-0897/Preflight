@@ -89,6 +89,10 @@ def create_app(database=None):
     app.include_router(reports_router)
     from .datasets import router as datasets_router
     app.include_router(datasets_router)
+    from .credentials import router as credential_router
+    app.include_router(credential_router)
+    from .connections import router as connection_router
+    app.include_router(connection_router)
     return app
 
 

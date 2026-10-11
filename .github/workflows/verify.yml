@@ -47,3 +47,22 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: next-browser-evidence, path: 'test-results/'}
+  frameworks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [langgraph, crewai, openai-agents]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install uv==0.13.0
+      - run: uv venv .framework --python 3.12
+      - run: uv pip sync --python .framework/bin/python requirements/agents/${{ matrix.framework }}.lock
+      - run: .framework/bin/python scripts/framework_smoke.py ${{ matrix.framework }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: framework-${{ matrix.framework }}-evidence
+          path: .local/*-smoke.json

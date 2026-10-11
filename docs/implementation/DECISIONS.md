@@ -1,3 +1,7 @@
+## Isolated framework environments
+
+CrewAI and OpenAI Agents SDK have incompatible OpenAI package requirements. Separate hash-locked Python 3.12 environments preserve maintained versions and real runtime tests. Credential keys persist outside images; arbitrary code stays in operator-owned gateways.
+
 # Platform completion — phase 1
 
 **Frontend foundation: COMPLETE AND VERIFIED locally for native workflows; remote CI pending this checkpoint.** Genuine Next.js App Router/React application now replaces the script wrapper. Locked dependencies include Tailwind, Radix Dialog, TanStack Query, React Hook Form, Zod, local open-source fonts and Vitest. Existing API/data contracts and FastAPI fallback are preserved. Module routes cover organizations/workspaces, projects, agents/versions, runs/evidence, benchmarks/datasets, reviews/security/traces, comparisons, policies, reports and settings. Non-native execution remains a later phase, not a frontend claim.

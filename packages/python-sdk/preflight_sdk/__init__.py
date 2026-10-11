@@ -28,3 +28,9 @@ class Client:
 
     def run(self, run_id):
         return self.request("GET", f"/runs/{run_id}")
+
+    def register_connection(self, project_id, name, endpoint, framework="http", credential_id=None):
+        return self.request("POST", f"/projects/{project_id}/agents", {"name": name, "framework": framework, "version": "1.0.0", "config": {"endpoint": endpoint, "credential_id": credential_id}})
+
+    def credential(self, workspace_id, name, value):
+        return self.request("POST", f"/workspaces/{workspace_id}/credentials", {"name": name, "value": value})

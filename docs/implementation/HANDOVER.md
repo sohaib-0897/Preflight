@@ -1,3 +1,23 @@
+## Platform phase 2 — executable connections (local verification)
+
+Implemented HTTP/SDK gateways, actual LangGraph/CrewAI/OpenAI Agents runtimes,
+workspace encrypted credential references, connection health, pinned DNS/TLS SSRF
+controls, and connected-agent native scenario execution with broker state validation.
+New migration is additive; existing agent interfaces and native execution remain.
+
+Verification: 47 backend tests passed locally (14 live Docker checks excluded only
+because this session cannot access the daemon); four frontend unit tests, production
+Next.js build and six Chromium browser checks passed. Each of three isolated actual
+framework runtimes executed all eight scenarios without hosted inference. Real TCP
+HTTP invocation, SDK session invocation, TLS hostname preservation, DNS resolution
+pinning and tenant credential isolation were exercised. CI runtime matrix added;
+remote phase verification is pending until the commit is pushed.
+
+Limitations: local Docker remains inaccessible; live Ollama/hosted models were not
+called. Framework examples deliberately use deterministic offline inference. Remote
+process termination after cancellation requires gateway cooperation. See
+[connection architecture](../architecture/AGENT-CONNECTIONS.md).
+
 # Platform completion — phase 1
 
 **Frontend foundation: COMPLETE AND VERIFIED locally for native workflows; remote CI pending this checkpoint.** Genuine Next.js App Router/React application now replaces the script wrapper. Locked dependencies include Tailwind, Radix Dialog, TanStack Query, React Hook Form, Zod, local open-source fonts and Vitest. Existing API/data contracts and FastAPI fallback are preserved. Module routes cover organizations/workspaces, projects, agents/versions, runs/evidence, benchmarks/datasets, reviews/security/traces, comparisons, policies, reports and settings. Non-native execution remains a later phase, not a frontend claim.

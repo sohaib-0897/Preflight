@@ -98,6 +98,8 @@ async def create_run(project_id: str, body: RunInput, user=Depends(current_user)
     agent = db.get(Agent, version.agent_id) if version else None
     if not agent or agent.project_id != project_id:
         raise HTTPException(404, "Agent version not found in project")
+    if agent.framework != "native" and body.backend == "docker":
+        raise HTTPException(422, "Remote agents execute in their operator-owned environment; Docker runner supports native fixtures only")
     if body.benchmark != "native":
         raise HTTPException(422, "Official upstream execution unavailable; consult benchmark status")
     config = body.model_dump(exclude={"version_id", "idempotency_key"})
@@ -107,7 +109,9 @@ async def create_run(project_id: str, body: RunInput, user=Depends(current_user)
             raise HTTPException(404, "Dataset not found in project")
         config["scenarios"] = dataset.payload["scenario_ids"]
         config["dataset_fingerprint"] = dataset.payload["fingerprint"]
-    config.update({"benchmark_version": "1.0.0", "agent_fingerprint": version.fingerprint, "execution_label": "trusted built-in code, not a sandbox" if body.backend == "trusted-demo" else "restricted Docker native runner"})
+    config.update({"benchmark_version": "1.0.0", "agent_fingerprint": version.fingerprint, "agent_framework": agent.framework, "execution_label": "trusted built-in code, not a sandbox" if body.backend == "trusted-demo" else "restricted Docker native runner"})
+    if agent.framework != "native":
+        config["execution_label"] = "Connected agent in operator-owned environment; local broker side effects verified"
     existing = db.scalar(select(EvaluationRun).where(EvaluationRun.project_id == project_id, EvaluationRun.idempotency_key == body.idempotency_key))
     if existing:
         if existing.config != config or existing.version_id != version.id:
@@ -215,6 +219,9 @@ def perform(database, run_id):
                         try:
                             if config["backend"] == "docker":
                                 result = DockerBackend().execute(scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()))
+                            elif db.get(Agent, version.agent_id).framework != "native":
+                                from .connections import execute_connected
+                                result = execute_connected(db, run, version, scenario, config["seed"]+trial, max(.1, deadline-time.monotonic()))
                             else:
                                 result = execute(scenario, version.config["mode"], config["seed"]+trial)
                             break
@@ -257,6 +264,8 @@ def perform(database, run_id):
 @router.post("/runs/{run_id}/execute")
 async def execute_demo(run_id: str, request: Request, user=Depends(current_user), db=Depends(get_db)):
     run, org = run_access(db, user, run_id, "developer")
+    if run.config.get("agent_framework", "native") != "native":
+        raise HTTPException(409, "Connected agents require the background worker")
     if run.config["backend"] != "trusted-demo":
         raise HTTPException(409, "Docker jobs require the operator worker")
     if run.status != "QUEUED":

@@ -1,3 +1,23 @@
+## Platform phase 2 — executable connections (local verification)
+
+Implemented HTTP/SDK gateways, actual LangGraph/CrewAI/OpenAI Agents runtimes,
+workspace encrypted credential references, connection health, pinned DNS/TLS SSRF
+controls, and connected-agent native scenario execution with broker state validation.
+New migration is additive; existing agent interfaces and native execution remain.
+
+Verification: 47 backend tests passed locally (14 live Docker checks excluded only
+because this session cannot access the daemon); four frontend unit tests, production
+Next.js build and six Chromium browser checks passed. Each of three isolated actual
+framework runtimes executed all eight scenarios without hosted inference. Real TCP
+HTTP invocation, SDK session invocation, TLS hostname preservation, DNS resolution
+pinning and tenant credential isolation were exercised. CI runtime matrix added;
+remote phase verification is pending until the commit is pushed.
+
+Limitations: local Docker remains inaccessible; live Ollama/hosted models were not
+called. Framework examples deliberately use deterministic offline inference. Remote
+process termination after cancellation requires gateway cooperation. See
+[connection architecture](../architecture/AGENT-CONNECTIONS.md).
+
 Phase 1 checkpoint `5052507`: [CI 38177616507](https://github.com/sohaib-0897/Preflight/actions/runs/38177616507) passed all native/Docker checks but caught a browser race when a dependent action preceded agent query loading. Fixed persistent layout query cache and action readiness; mandatory test unchanged, rerun pending.
 
 # Platform completion — phase 1

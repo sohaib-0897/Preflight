@@ -18,7 +18,7 @@ class VersionInput(BaseModel):
     @field_validator("config")
     @classmethod
     def config_valid(cls, v):
-        if set(v) - {"mode", "model", "provider", "capabilities", "tool_schemas"}:
+        if set(v) - {"mode", "model", "provider", "capabilities", "tool_schemas", "endpoint", "credential_id", "auth_type", "timeout", "retries"}:
             raise ValueError("Unknown configuration keys or credentials; use operator credential references")
         if v.get("mode", "accurate") not in MODES:
             raise ValueError("Unsupported demo agent mode")
@@ -27,6 +27,17 @@ class VersionInput(BaseModel):
                 raise ValueError("Model/provider must be plain metadata, never credentials")
         if len(json.dumps(v)) > 16384:
             raise ValueError("Configuration too large")
+        if v.get("endpoint"):
+            from urllib.parse import urlparse
+            if not isinstance(v["endpoint"],str) or len(v["endpoint"])>2048:
+                raise ValueError("Invalid endpoint")
+            parsed=urlparse(v["endpoint"])
+            if parsed.scheme not in {"https","http"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+                raise ValueError("Endpoint must contain no credentials/query/fragment")
+        if v.get("auth_type","bearer") not in {"bearer","header"}:
+            raise ValueError("Unsupported authentication type")
+        if type(v.get("timeout",20)) is not int or not 1<=v.get("timeout",20)<=120 or type(v.get("retries",0)) is not int or not 0<=v.get("retries",0)<=2:
+            raise ValueError("Invalid invocation budgets")
         return v
 
 
@@ -48,6 +59,8 @@ def serialize_version(v):
 
 
 def add_version(db, agent, body):
+    from .credentials import reference
+    reference(db, agent.project_id, body.config.get("credential_id"))
     config = {"mode": "accurate", **body.config}
     fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     v = AgentVersion(agent_id=agent.id, version=body.version, config=config, fingerprint=fingerprint)
@@ -63,8 +76,10 @@ def add_version(db, agent, body):
 @router.post("/projects/{project_id}/agents", status_code=201)
 async def create_agent(project_id: str, body: AgentInput, user=Depends(current_user), db=Depends(get_db)):
     _, org_id = project_access(db, user, project_id, "developer")
-    if body.framework != "native":
-        raise HTTPException(422, "Web execution currently supports native demos; framework adapters are Python library integrations")
+    if body.framework not in {"native", "http", "python", "langgraph", "crewai", "openai-agents", "custom"}:
+        raise HTTPException(422, "Unsupported agent framework")
+    if body.framework != "native" and not body.config.get("endpoint"):
+        raise HTTPException(422, "Framework agents require an operator-owned HTTP bridge endpoint")
     a = Agent(project_id=project_id, name=body.name, description=body.description, framework=body.framework)
     db.add(a)
     db.flush()

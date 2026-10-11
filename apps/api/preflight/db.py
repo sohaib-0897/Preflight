@@ -178,6 +178,16 @@ class Benchmark(Base):
 BenchmarkVersion = evidence_table("benchmark_versions", "benchmark_id", "benchmarks")
 
 
+class Credential(Base):
+    __tablename__ = "credentials"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    ciphertext: Mapped[str] = mapped_column(Text)
+    active: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[str] = mapped_column(String, default=now)
+
+
 class Database:
     def __init__(self, url=None):
         url = url or os.environ.get("DATABASE_URL", "sqlite:///./.local/preflight.sqlite")
