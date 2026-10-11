@@ -19,7 +19,7 @@ bash scripts/dev.sh
 # Separate ordinary terminal for queued jobs:
 bash scripts/worker.sh
 ```
-The standalone core works in the active sandbox. Browser/API port startup must run in an ordinary authorized terminal because the coding sandbox denies bind. Open localhost:8000, create a private account, then create project -> connect native agent -> queue evaluation -> execute native demo -> inspect trace/state -> compare -> release/export. No shared password or demo account exists.
+The standalone core works in this session. The browser test attempt encountered an existing service on port 8000; that service was preserved. Open localhost:8000, create a private account, then create project -> connect native agent -> queue evaluation -> execute native demo -> inspect trace/state -> compare -> release/export. No shared password or demo account exists.
 
 Docker Compose source:
 ```bash

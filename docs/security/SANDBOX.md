@@ -11,9 +11,12 @@ The operator worker runs on a host with Docker CLI access. Never mount `/var/run
 docker build -f infra/docker/sandbox.Dockerfile -t preflight-sandbox:0.1.0 .
 ```
 
-Live tests in `tests/security/test_docker_live.py` are skipped if Docker is absent and require a dedicated daemon with the image built. They check actual non-root/read-only/network behavior, cgroup limits, memory exhaustion, writable disk ceilings, timeout and cleanup. Command construction tests alone do not establish isolation.
+Live tests in `tests/security/test_docker_live.py` are skipped only if the Docker executable is absent. With the executable present, daemon or image access failures fail explicitly. CI checks daemon access and builds the image from repository root before running all tests. They check actual non-root/read-only/network behavior, cgroup limits, memory exhaustion, writable disk ceilings, timeout and cleanup. Command construction tests alone do not establish isolation.
 
 Abandoned cleanup is an operator-only method `DockerBackend.cleanup_abandoned()`. Stop workers first; it removes only containers with the Preflight sandbox label. A scheduler for age-aware cleanup is not implemented. Failure to provision a sandbox is an infrastructure result, never an agent task failure. Expired worker leases become BLOCKED and require an explicit rerun.
 
 ## Stronger isolation
 `ExecutionBackend` is a protocol for future microVM backends. `StrongIsolationRequired` refuses execution. Firecracker is not implemented. Docker is an initial boundary, not a guarantee against hostile workloads. No outbound networking, provider credentials or arbitrary public tenant code is supported inside native runner containers.
+
+## Compose service networking
+The trusted API joins the ingress bridge for localhost-only port publication and the internal backend bridge for database access. The API can make outbound connections through ingress; it does not execute arbitrary agent code. PostgreSQL, Redis and the durable worker join only the internal bridge and publish no ports. Restricted native agent containers still use `--network=none`; no socket mount or outbound permission was added to them.

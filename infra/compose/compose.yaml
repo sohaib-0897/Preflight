@@ -40,7 +40,7 @@ services:
     volumes: ["artifacts:/app/.local"]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    networks: [backend]
+    networks: [backend, ingress]
   worker:
     build:
       context: ../..
@@ -63,3 +63,6 @@ volumes:
 networks:
   backend:
     internal: true
+  ingress:
+    # Trusted API ingress only; workers and data services remain internal.
+    driver: bridge
