@@ -20,6 +20,11 @@ def main():
     config = {"benchmark": "native", "benchmark_version": "1.0.0", "scenarios": SCENARIO_IDS, "seed": 42, "trials": 1, "backend": "trusted-demo"}
     summary = aggregate(results)
     policy = {**DEFAULT_POLICY, **(json.loads(args.policy.read_text()) if args.policy else {})}
+    from preflight_scoring import validate_policy
+    try:
+        validate_policy(policy)
+    except ValueError as exc:
+        parser.error(str(exc))
     decision = release_decision(summary, config, policy)
     report = {"summary": summary, "config": config, "attempts": results, "release": decision}
     if args.output:

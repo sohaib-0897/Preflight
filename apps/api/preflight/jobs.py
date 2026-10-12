@@ -436,7 +436,9 @@ def compare_traces(baseline_run: str, baseline_attempt: str, candidate_run: str,
     if not left or not right or left.run_id != baseline_run or right.run_id != candidate_run:
         raise HTTPException(404, "Attempt not found")
     from preflight_eval.diagnostics import trace_diff
-    return trace_diff(left.result.get("events",[]),right.result.get("events",[]))
+    result = trace_diff(left.result.get("events",[]),right.result.get("events",[]))
+    result.update({'baseline_scenario':left.scenario_id,'candidate_scenario':right.scenario_id,'same_scenario':left.scenario_id==right.scenario_id,'limitations':'Structural evidence comparison; different scenarios cannot establish an agent regression'})
+    return result
 
 
 @router.get('/runs/{run_id}/attempts/{attempt_id}/trace.json')

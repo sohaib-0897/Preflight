@@ -22,6 +22,9 @@ class PolicyConfig(BaseModel):
     required_benchmarks: list[str] = Field(default_factory=lambda: ["native"], max_length=20)
     required_reviews: int = Field(default=0, ge=0, le=100000)
     max_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    required_security_checks: list[str] = Field(default_factory=list, max_length=30)
+    max_high: int | None = Field(default=None, ge=0, le=100000)
+    required_review_approvals: int = Field(default=0, ge=0, le=100000)
     honor_human_overrides: bool = False
     regression_tolerance: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
 
@@ -36,7 +39,12 @@ def create_policy(project_id: str, body: PolicyInput, user=Depends(current_user)
     existing = db.scalar(select(func.max(ReleasePolicy.version)).where(ReleasePolicy.project_id == project_id, ReleasePolicy.name == body.name)) or 0
     policy = ReleasePolicy(project_id=project_id, name=body.name, version=existing+1, config=body.config.model_dump())
     db.add(policy)
-    db.flush()
+    from sqlalchemy.exc import IntegrityError
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409,"Concurrent policy version creation; refresh and retry")
     audit(db, user, org, "release_policy.create", policy.id)
     db.commit()
     return {"id": policy.id, "name": policy.name, "version": policy.version, "config": policy.config}
@@ -96,7 +104,10 @@ def gate(run_id: str, body: dict, user=Depends(current_user), db=Depends(get_db)
             summary["task_success_rate"] = sum(outcomes)/len(outcomes)
         else:
             summary["task_success_rate"] = None
-    decision = release_decision(summary, run.config, config, reviews, comparison, run.status)
+    latest_reviews = serialize(run, db, True)["review_overrides"]
+    approvals = sum(r["outcome"] == "PASSED" for r in latest_reviews.values())
+    decision = release_decision(summary, run.config, config, reviews, comparison, run.status, approvals=approvals)
+    decision["approved_attempts"] = approvals
     decision["human_overrides_applied"] = override_count
     decision["automatic_summary_preserved"] = run.summary
     decision.update({"policy_id": policy.id if policy else None, "policy_version": policy.version if policy else 1, "run_id": run_id, "reviewed_attempts": reviews})

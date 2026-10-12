@@ -58,6 +58,33 @@ test('first user runs native evaluation, inspects state and exports evidence',as
  const traceViolations=await page.evaluate(async()=>(await (window as any).axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations);
  expect(traceViolations).toEqual([]);
  await page.screenshot({path:`test-results/trace-${test.info().project.name}.png`,fullPage:true});
+ const agent=(await (await page.request.get(`/api/v1/projects/${projectId}/agents`)).json())[0];
+ const version=await (await page.request.post(`/api/v1/agents/${agent.id}/versions`,{headers,data:{version:'regression-2',config:{mode:'regressed'}}})).json();
+ const regression=await (await page.request.post(`/api/v1/projects/${projectId}/runs`,{headers,data:{version_id:version.id,idempotency_key:`regression-browser-${Date.now()}`}})).json();
+ expect((await page.request.post(`/api/v1/runs/${regression.id}/execute`,{headers,data:{}})).status()).toBe(200);
+ await page.getByRole('link',{name:'Comparisons',exact:true}).click();
+ await page.getByLabel('Baseline',{exact:true}).selectOption(baseline);
+ await page.getByLabel('Candidate',{exact:true}).selectOption(candidate);
+ await page.getByRole('button',{name:'Compare runs',exact:true}).click();
+ await expect(page.getByText('Incompatible:',{exact:false})).toBeVisible();
+ await page.reload();
+ await page.getByLabel('Baseline',{exact:true}).selectOption(baseline);
+ await page.getByLabel('Candidate',{exact:true}).selectOption(regression.id);
+ await page.getByRole('button',{name:'Compare runs',exact:true}).click();
+ await expect(page.getByRole('table',{name:'Comparable evidence dimensions'})).toContainText('recovery success');
+ await page.evaluate(fs.readFileSync('node_modules/axe-core/axe.min.js','utf8'));
+ const comparisonViolations=await page.evaluate(async()=>(await (window as any).axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations);
+ expect(comparisonViolations).toEqual([]);
+ if(test.info().project.name==='mobile'){
+  const region=page.getByRole('region',{name:'Comparable evidence dimensions scroll area'});
+  await region.focus();await page.keyboard.press('ArrowRight');
+  await expect.poll(()=>region.evaluate(element=>element.scrollLeft)).toBeGreaterThan(0);
+ }
+ await page.screenshot({path:`test-results/comparison-${test.info().project.name}.png`,fullPage:true});
+ await page.goto(`/evaluations/${regression.id}`);
+ await page.getByRole('button',{name:'Evaluate release policy'}).click();
+ await expect(page.getByText('FAIL',{exact:true})).toBeVisible();
+
 
 });
 

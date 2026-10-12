@@ -1,3 +1,27 @@
+## Platform phase 8 — comparisons and evidence-required release gates
+
+Expanded compatible paired comparisons with dimension-specific denominators,
+scenario-cluster latency intervals, valid explicitly reported token/cost coverage,
+latest human review statistics and security severity/coverage. Material differences
+in security mode, custom assertions and source versions reject comparison. Added
+mandatory security categories, high-finding limits and latest approval requirements;
+missing evidence stays INCONCLUSIVE. Critical findings survive accuracy uncertainty
+and human overrides. Concurrent policy version conflicts return 409. Offline CI
+policies validate thresholds and lists rather than accepting invalid release limits.
+
+Local evidence: 71 backend tests excluding daemon checks; targeted Ruff/Mypy;
+production Next build and four component tests. All ten desktop/mobile Chromium journeys passed, including compatible version
+regression, incompatible coverage rejection, metrics table, release FAIL, axe checks
+and keyboard scrolling. Comparison screenshots were reviewed. A real mobile table
+focus defect was fixed; no accessibility rule was disabled. CLI accurate PASS exit 0 and regressed FAIL exit 1 were
+executed. Usage tests use clearly synthetic prices to verify math only; actual demo
+usage remains unknown. Remote phase 8 verification pending push.
+
+Phase 7 remote confirmation: 31a60a47d56afbaaadf0fa5e7b1e3045bc5df6ce,
+https://github.com/sohaib-0897/Preflight/actions/runs/38210955553 SUCCESS,
+all seven jobs, including native Docker/Compose, frameworks and official cases.
+See docs/architecture/COMPARISONS.md for definitions and uncertainty limitations.
+
 ## Platform phase 7 — correlated tracing and deterministic diagnostics
 
 Implemented real OpenTelemetry request→worker→attempt recording spans, persisted
