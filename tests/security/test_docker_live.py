@@ -92,11 +92,14 @@ def test_live_cgroup_caps_and_process_limits():
     result = run_python("""import json,resource
 from pathlib import Path
 status=Path('/proc/self/status').read_text()
-print(json.dumps({'memory':Path('/sys/fs/cgroup/memory.max').read_text().strip(),'pids':Path('/sys/fs/cgroup/pids.max').read_text().strip(),'caps':next(x for x in status.splitlines() if x.startswith('CapEff:')).split()[1],'nofile':resource.getrlimit(resource.RLIMIT_NOFILE)[0]}))""")
+print(json.dumps({'memory':Path('/sys/fs/cgroup/memory.max').read_text().strip(),'pids':Path('/sys/fs/cgroup/pids.max').read_text().strip(),'caps':next(x for x in status.splitlines() if x.startswith('CapEff:')).split()[1],'nofile':resource.getrlimit(resource.RLIMIT_NOFILE)[0],'cpu':Path('/sys/fs/cgroup/cpu.max').read_text().strip(),'no_new_privs':next(x for x in status.splitlines() if x.startswith('NoNewPrivs:')).split()[1],'seccomp':next(x for x in status.splitlines() if x.startswith('Seccomp:')).split()[1]}))""")
     assert result.returncode == 0, result.stderr
     data = json.loads(result.stdout)
     assert int(data["memory"]) == 128 * 1024 * 1024 and int(data["pids"]) == 32
     assert int(data["caps"], 16) == 0 and data["nofile"] == 128
+    quota, period = map(int, data["cpu"].split())
+    assert quota / period == 0.5
+    assert data["no_new_privs"] == "1" and data["seccomp"] == "2"
 
 
 def test_live_memory_exhaustion_is_contained():

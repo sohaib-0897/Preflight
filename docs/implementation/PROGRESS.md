@@ -1,3 +1,11 @@
+# Live sandbox assertion follow-up
+
+Strengthened the existing live cgroup test to inspect cpu.max, NoNewPrivs and Seccomp,
+asserting the half-CPU quota, no-new-privileges and active filtering at runtime.
+Memory/PID/capability/file-descriptor, memory exhaustion, disk, network and cleanup
+checks remain mandatory. No security configuration or test was relaxed. Actual
+remote execution is required; local daemon remains inaccessible.
+
 # Final QA command follow-up
 
 The root npm test:e2e command now selects the maintained Next browser configuration.

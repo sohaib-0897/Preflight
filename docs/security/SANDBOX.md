@@ -11,7 +11,7 @@ The operator worker runs on a host with Docker CLI access. Never mount `/var/run
 docker build -f infra/docker/sandbox.Dockerfile -t preflight-sandbox:0.1.0 .
 ```
 
-Live tests in `tests/security/test_docker_live.py` are skipped only if the Docker executable is absent. With the executable present, daemon or image access failures fail explicitly. CI checks daemon access and builds the image from repository root before running all tests. They check actual non-root/read-only/network behavior, cgroup limits, memory exhaustion, writable disk ceilings, timeout and cleanup. Command construction tests alone do not establish isolation.
+Live tests in `tests/security/test_docker_live.py` are skipped only if the Docker executable is absent. With the executable present, daemon or image access failures fail explicitly. CI checks daemon access and builds the image from repository root before running all tests. They check actual non-root/read-only/network behavior, kernel CPU/memory/PID limits, no-new-privileges and active seccomp, memory exhaustion, writable disk ceilings, timeout and cleanup. Command construction tests alone do not establish isolation.
 
 Abandoned cleanup is an operator-only method `DockerBackend.cleanup_abandoned()`. Stop workers first; it removes only containers with the Preflight sandbox label. A scheduler for age-aware cleanup is not implemented. Failure to provision a sandbox is an infrastructure result, never an agent task failure. Expired worker leases become BLOCKED and require an explicit rerun.
 
