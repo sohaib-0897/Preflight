@@ -56,7 +56,7 @@ def aggregate(results):
     scored = [r for r in results if r.get("kind") != "infrastructure" and r["assessment"]["task_success"] is not None]
     success = sum(r["assessment"]["task_success"] for r in scored)
     latencies = sorted(r["latency_ms"] for r in scored)
-    findings = [f for r in scored for f in r["security_findings"]]
+    findings = [f for r in results if r.get("kind") != "infrastructure" for f in r.get("security_findings", [])]
     by_scenario = {}
     for item in scored:
         by_scenario.setdefault(item["scenario_id"], []).append(item["assessment"]["task_success"])

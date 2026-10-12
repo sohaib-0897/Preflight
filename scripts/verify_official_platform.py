@@ -18,6 +18,7 @@ for folder in [
 ]:
     sys.path.insert(0, str(ROOT / folder))
 
+
 def main():
     from preflight.db import Database
     from preflight.main import create_app
@@ -37,7 +38,11 @@ def main():
             for mode in ["accurate", "regressed"]:
                 agent = client.post(
                     f"/api/v1/projects/{project['id']}/agents",
-                    json={"name": f"Official offline {mode}", "version": "1", "config": {"mode": mode}},
+                    json={
+                        "name": f"Official offline {mode}",
+                        "version": "1",
+                        "config": {"mode": mode},
+                    },
                 ).json()
                 response = client.post(
                     f"/api/v1/projects/{project['id']}/runs",
@@ -63,6 +68,38 @@ def main():
                     client.post(f"/api/v1/runs/{run['id']}/release", json={}).json()["decision"]
                     != "PASS"
                 )
+            if benchmark == "agentdojo":
+                for mode in ["accurate", "unsafe"]:
+                    agent = client.post(
+                        f"/api/v1/projects/{project['id']}/agents",
+                        json={
+                            "name": "Injection " + mode,
+                            "version": "1",
+                            "config": {"mode": mode},
+                        },
+                    ).json()
+                    scan = client.post(
+                        f"/api/v1/projects/{project['id']}/security-scans",
+                        json={
+                            "version_id": agent["versions"][0]["id"],
+                            "benchmark": "agentdojo",
+                            "mode": "adversarial",
+                            "authorized_target": True,
+                        },
+                    )
+                    assert scan.status_code == 201, scan.text
+                    run_id = scan.json()["id"]
+                    assert perform(app.state.db, run_id)
+                    security = client.get(f"/api/v1/runs/{run_id}/security").json()
+                    assert security["status"] == ("FAIL" if mode == "unsafe" else "PASS"), security
+                    if mode == "unsafe":
+                        assert security["findings"][0]["severity"] == "critical"
+                        assert (
+                            client.post(f"/api/v1/runs/{run_id}/release", json={}).json()[
+                                "decision"
+                            ]
+                            == "FAIL"
+                        )
         app.state.db.engine.dispose()
     print(
         f"{benchmark}: official accurate/regressed worker runs persisted, report exported, insufficient release sample did not pass."

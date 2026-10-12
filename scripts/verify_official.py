@@ -33,8 +33,16 @@ try:
     good = module.run("accurate", 42)
     bad = module.run("regressed", 42)
     assert good["native_score"] == 1 and bad["native_score"] == 0
+    if benchmark == "agentdojo":
+        protected = module.run("accurate", 42, adversarial=True)
+        vulnerable = module.run("unsafe", 42, adversarial=True)
+        assert protected["native_score"] == vulnerable["native_score"] == 1
+        assert protected["attack_success"] is False and vulnerable["attack_success"] is True
+        assert any(e.get("authorization") for e in vulnerable["events"])
     assert not attempts, attempts
     output = {"good": good, "regressed": bad, "outbound_connections": attempts}
+    if benchmark == "agentdojo":
+        output.update({"protected_injection": protected, "vulnerable_injection": vulnerable})
     (ROOT / ".local").mkdir(exist_ok=True)
     (ROOT / ".local" / f"{benchmark}-official-smoke.json").write_text(json.dumps(output, indent=2))
     print(

@@ -32,6 +32,8 @@ class RunInput(BaseModel):
     dataset_id: str | None = None
     benchmark: str = "native"
     backend: str = "trusted-demo"
+    security_mode: str | None = None
+    authorized_target: bool = False
 
     @field_validator("scenarios")
     @classmethod
@@ -111,6 +113,10 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
     agent = db.get(Agent, version.agent_id) if version else None
     if not agent or agent.project_id != project_id:
         raise HTTPException(404, "Agent version not found in project")
+    if body.security_mode not in {None,"basic","adversarial"}:
+        raise HTTPException(422,"Unsupported security scan mode")
+    if body.security_mode and (agent.framework!="native" or body.security_mode=="adversarial") and not body.authorized_target:
+        raise HTTPException(422,"Explicit authorized-target confirmation required for connected or adversarial testing")
     if agent.framework != "native" and body.backend == "docker":
         raise HTTPException(422, "Remote agents execute in their operator-owned environment; Docker runner supports native fixtures only")
     if body.benchmark != "native":
@@ -118,7 +124,7 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
         spec = SPECS.get(body.benchmark)
         if not spec or not next((b for b in registry() if b["id"] == body.benchmark and b["status"] == "AVAILABLE"), None):
             raise HTTPException(422, "Official offline benchmark environment unavailable; consult benchmark status")
-        if agent.framework != "native" or version.config["mode"] not in {"accurate", "regressed"} or body.backend != "trusted-demo" or body.dataset_id:
+        if agent.framework != "native" or version.config["mode"] not in ({"accurate", "regressed", "unsafe"} if body.benchmark == "agentdojo" and body.security_mode == "adversarial" else {"accurate", "regressed"}) or body.backend != "trusted-demo" or body.dataset_id:
             raise HTTPException(422, "Official smoke supports only the declared scripted native reference-agent preset in its isolated dependency environment")
     config = body.model_dump(exclude={"version_id", "idempotency_key"})
     if body.benchmark == "native":
@@ -136,6 +142,10 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
         config["dataset_fingerprint"] = dataset.payload["fingerprint"]
         config["custom_scenarios"] = dataset.payload.get("custom_scenarios",[])
         config["evidence_sources"] = dataset.payload.get("sources",[])
+    active_cases = {"prompt-injection", "unauthorized"}
+    selected_cases = set(config["scenarios"]) | {s["base_scenario"] for s in config.get("custom_scenarios", [])}
+    if agent.framework != "native" and selected_cases & active_cases and not body.authorized_target:
+        raise HTTPException(422, "Explicit authorized-target confirmation required for controlled adversarial cases")
     config.update({"benchmark_version": "1.0.0", "agent_fingerprint": version.fingerprint, "agent_framework": agent.framework, "execution_label": "trusted built-in code, not a sandbox" if body.backend == "trusted-demo" else "restricted Docker native runner"})
     if body.benchmark != "native":
         config.update({"benchmark_version":spec["version"], "package_version":spec["package_version"], "execution_label":"Official offline smoke, scripted reference agent, trusted upstream process; not a Docker sandbox or model-quality benchmark"})
@@ -256,7 +266,7 @@ def perform(database, run_id, stop=None):
                         try:
                             if config["benchmark"] != "native":
                                 from preflight_benchmarks.execution import execute_official
-                                result = execute_official(config["benchmark"], scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
+                                result = execute_official(config["benchmark"], scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled, adversarial=config.get("security_mode")=="adversarial")
                             elif config["backend"] == "docker":
                                 result = DockerBackend().execute(execution_scenario, version.config["mode"], config["seed"]+trial, max(.1, deadline-time.monotonic()), cancelled=cancelled)
                             elif db.get(Agent, version.agent_id).framework != "native":

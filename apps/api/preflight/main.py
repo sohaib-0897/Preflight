@@ -96,6 +96,8 @@ def create_app(database=None):
     app.include_router(connection_router)
     from .realitycheck import router as realitycheck_router
     app.include_router(realitycheck_router)
+    from .security_checks import router as security_router
+    app.include_router(security_router)
     return app
 
 

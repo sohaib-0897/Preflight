@@ -55,3 +55,12 @@ test('RealityCheck ingests references and validates a custom persisted scenario'
  await expect(page.getByRole('link',{name:'Skip to content'})).not.toBeFocused();
  await page.screenshot({path:`test-results/realitycheck-${test.info().project.name}.png`,fullPage:true});
 });
+
+test('authorized security scan exposes findings and incomplete coverage',async({page})=>{
+ await page.goto('/');await page.getByRole('button',{name:'Create a new account'}).click();
+ await page.getByLabel('Email',{exact:true}).fill(`security-${Date.now()}@example.test`);await page.getByLabel('Password',{exact:true}).fill('browser-synthetic-passphrase');await page.getByRole('button',{name:'Create account',exact:true}).click();
+ await page.getByRole('button',{name:'Create project',exact:true}).click();await page.getByLabel('Project name').fill('Security fixtures');await page.getByRole('dialog').getByRole('button',{name:'Create project',exact:true}).click();
+ await page.getByRole('link',{name:'Agents',exact:true}).click();await page.getByRole('button',{name:'Connect agent',exact:true}).first().click();await page.getByLabel('Agent name').fill('Unsafe reference agent');await page.getByLabel('Native behavior').selectOption('unsafe');await page.getByRole('dialog').getByRole('button',{name:'Connect agent',exact:true}).click();
+ await page.getByRole('link',{name:'Security',exact:true}).click();await page.getByRole('button',{name:'Start security scan',exact:true}).click();await page.getByLabel('Security mode').selectOption('adversarial');await page.getByRole('dialog').getByRole('button',{name:'Start security scan',exact:true}).click();await expect(page.getByRole('alert').last()).toContainText('authorized-target');
+ await page.getByLabel('Target authorization').selectOption('true');await page.getByRole('dialog').getByRole('button',{name:'Start security scan',exact:true}).click();await page.getByRole('button',{name:'Execute native demo'}).click();await expect(page.getByText('COMPLETED',{exact:true}).first()).toBeVisible();await page.getByRole('button',{name:'Security',exact:true}).click();await page.getByRole('button',{name:'View security coverage'}).click();await expect(page.getByLabel('Execution evidence').last()).toContainText('critical');await expect(page.getByLabel('Execution evidence').last()).toContainText('NOT_RUN');await page.screenshot({path:`test-results/security-${test.info().project.name}.png`,fullPage:true});
+});

@@ -6,7 +6,7 @@ import subprocess
 import time
 from pathlib import Path
 from preflight_eval.sandbox import InfrastructureFailure
-from preflight_security import redact
+from preflight_security import redact, finding
 
 SPECS = {
     "tau3": {
@@ -28,12 +28,16 @@ SPECS = {
 }
 
 
-def execute_official(benchmark, scenario, mode, seed, timeout, cancelled=None):
+def execute_official(benchmark, scenario, mode, seed, timeout, cancelled=None, adversarial=False):
     spec = SPECS[benchmark]
     executable = os.environ.get(spec["env"])
     if not executable or not Path(executable).is_file():
         raise InfrastructureFailure("Official benchmark environment is not installed/configured")
-    if scenario != spec["scenario"] or mode not in {"accurate", "regressed"}:
+    if scenario != spec["scenario"] or mode not in (
+        {"accurate", "regressed", "unsafe"}
+        if benchmark == "agentdojo" and adversarial
+        else {"accurate", "regressed"}
+    ):
         raise InfrastructureFailure("Only the declared official offline smoke preset is supported")
     root = Path(__file__).resolve().parents[3]
     # No provider credentials are inherited by this offline-only benchmark process.
@@ -45,7 +49,8 @@ def execute_official(benchmark, scenario, mode, seed, timeout, cancelled=None):
         "PREFLIGHT_BENCHMARK_SEED": str(seed),
     }
     process = subprocess.Popen(
-        [executable, str(root / "scripts/benchmarks" / spec["script"]), mode],
+        [executable, str(root / "scripts/benchmarks" / spec["script"]), mode]
+        + (["adversarial"] if adversarial else []),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=env,
@@ -122,7 +127,31 @@ def execute_official(benchmark, scenario, mode, seed, timeout, cancelled=None):
                     "factual": {"status": "NOT_APPLICABLE"},
                     "confidence": {"status": "INCONCLUSIVE"},
                 },
-                "security_findings": [],
+                "security_findings": [
+                    finding(
+                        "unauthorized_action",
+                        "critical",
+                        {
+                            "completed": True,
+                            "injection_task_id": data["injection_task_id"],
+                            "events": [e for e in events if e.get("authorization")],
+                        },
+                    )
+                ]
+                if data.get("attack_success")
+                else [],
+                "security_checks": [
+                    {
+                        "category": "official_prompt_injection",
+                        "status": data["security_status"],
+                        "evidence": {
+                            "upstream_attack_success": data["attack_success"],
+                            "injection_task_id": data.get("injection_task_id"),
+                        },
+                    }
+                ]
+                if adversarial
+                else [],
                 "failure": None
                 if score == 1
                 else {"category": "missing_required_action", "verified": True},

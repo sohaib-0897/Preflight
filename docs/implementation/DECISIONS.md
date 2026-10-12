@@ -1,3 +1,32 @@
+## Platform phase 6 — controlled security workflows
+
+Added authorized basic/adversarial scan scheduling, tenant-scoped coverage reports,
+actual connected-agent injection inputs and redacted input provenance, bounded
+consumption findings, stable finding identities and optional persisted OSV advisory
+lookups. Extended genuine official AgentDojo banking smoke with injection_task_0:
+protected and deliberately unsafe scripted agents both achieve utility; only the
+unsafe agent completes the attacker transfer and receives a critical release-blocking
+finding. Upstream scoring and its subject-matching limitation remain disclosed.
+
+Local evidence: 61 Python tests (live Docker excluded because socket permission is
+denied); genuine AgentDojo utility and protected/vulnerable injection runtime checks;
+API→worker→official scoring→persistent findings→release rejection; production Next
+build, four component tests and ten desktop/mobile Chromium journeys. Actual connected
+injection test uses a local HTTP server, no substituted adapter. Reviewed security
+screenshots under ignored test-results/. Live opt-in OSV query for FastAPI 0.142.2
+returned no known advisory; full dependency coverage is not claimed. Targeted Ruff, Mypy (new scan/advisory modules), secret detection and diff checks
+passed. Critical findings remain release-blocking even when accuracy is unassessed.
+Remote phase 6 verification pending push.
+
+Phase 5 remote confirmation: bcee0a019bdd5980bd3c49cca1310dc7a7349c79,
+https://github.com/sohaib-0897/Preflight/actions/runs/38181172885 SUCCESS.
+
+Limitations: provider usage, source analysis, general adversarial generation, full
+AgentDojo coverage and public arbitrary-code isolation are not verified capabilities.
+NOT_RUN/INCONCLUSIVE coverage remains visible. Docker access is locally blocked;
+mandatory live restrictions continue to run in CI without weakening configuration.
+See docs/security/ASSESSMENTS.md for scope, statuses and reproduction.
+
 ## Deterministic configurable RealityCheck
 
 Captured fixture rows support SQL assertions in an in-memory read-only database with SQLite authorization and a VM-step budget, never the application/host database. Unknown evidence remains INCONCLUSIVE and unassessed attempts are excluded from accuracy denominators. Immutable project sources and dataset fingerprints preserve provenance. Supplemental assessments append evidence; release score changes require explicit configured assertions or justified human overrides.
