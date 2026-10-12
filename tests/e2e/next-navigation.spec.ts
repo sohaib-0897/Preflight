@@ -6,7 +6,7 @@ test('all Next modules render genuine empty states and logout ends session',asyn
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:module,exact:true}).click();
   await expect(page.getByRole('heading',{name:module,exact:true,level:1})).toBeVisible();
  }
- if(test.info().project.name==='desktop'){await page.getByRole('button',{name:'Sign out'}).click();await expect(page.getByRole('heading',{name:'Sign in to Preflight'})).toBeVisible();}
+ await page.getByRole('button',{name:'Sign out of account',exact:true}).click();await expect(page.getByRole('heading',{name:'Sign in to Preflight'})).toBeVisible();
 });
 
 test('RealityCheck ingests references and validates a custom persisted scenario',async({page})=>{

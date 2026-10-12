@@ -1,40 +1,47 @@
 # Operations
-## Environment
-Ubuntu prerequisites: Python 3.12 plus venv, Git with your real configured identity, Node 22/npm, and Docker Engine/Compose for containers. Use rootless Docker where supported. Installation requiring administrative privileges is a manual operator step; no sudo or host policy changes were performed by implementation.
 
-Install runtime dependencies with `pip install -r requirements.lock` and verification tools with `npm ci`. The lock captures the cached, installed Python package versions; host Python 3.14 is verified while Python 3.12 deployment resolution remains unverified. The development requirements include pytest. Next dependencies have no lock because their resolution is blocked; do not claim a reproducible Next build yet.
+Use [Compose](COMPOSE.md) for the complete supported native stack and [README](../../README.md) for development prerequisites. Python 3.12 container/CI execution and Node 22 builds use pinned requirements/npm locks. Local host tests also run on Python 3.14. No host security settings or group memberships were changed.
 
-| Variable | Purpose | Default / requirement |
-|---|---|---|
-| DATABASE_URL | SQLAlchemy database URL | sqlite:///./.local/preflight.sqlite; PostgreSQL uses postgresql+psycopg |
-| PREFLIGHT_COOKIE_SECURE | Secure session cookies | false only for local HTTP; true with TLS |
-| PREFLIGHT_SANDBOX_IMAGE | Operator native image | preflight-sandbox:0.1.0; immutable digest recommended |
-| PREFLIGHT_ARTIFACT_ROOT | Private artifact directory | .local/artifacts |
-| REDIS_URL | Optional ARQ queue | unset; default database worker remains available |
-| PREFLIGHT_API_ORIGIN | Next API proxy target | http://127.0.0.1:8000 |
-| POSTGRES_PASSWORD | Compose local database secret | required; do not commit |
-| GRAFANA_PASSWORD | Optional monitoring profile | required when enabling monitoring |
+| Variable | Purpose |
+|---|---|
+| DATABASE_URL | SQLite development URL or postgresql+psycopg URL |
+| REDIS_URL | Redis/ARQ coordination; Compose sets it |
+| POSTGRES_PASSWORD | Private URL-safe Compose secret; preserve existing initialized value |
+| PREFLIGHT_COOKIE_SECURE | Set true under HTTPS; false for loopback development |
+| PREFLIGHT_API_ORIGIN | Next server-side API proxy origin |
+| PREFLIGHT_API_PORT / PREFLIGHT_WEB_PORT | Override loopback Compose published ports |
+| PREFLIGHT_PORT | Development API port |
+| PREFLIGHT_WORKER_BACKEND | trusted-demo or independently controlled docker host worker |
+| PREFLIGHT_QUEUE_PREFIX | Optional separate operator queue namespace |
+| PREFLIGHT_SANDBOX_IMAGE | Prebuilt native image tag or digest |
+| PREFLIGHT_ARTIFACT_ROOT | Private local artifact directory |
+| PREFLIGHT_CREDENTIAL_KEY | Optional protected encryption key; otherwise private persisted key file |
+| PREFLIGHT_AGENT_HOSTS / PREFLIGHT_AGENT_PRIVATE_ORIGINS | Explicit gateway origin allowlists; see connection guide for exact format |
+| PREFLIGHT_TAU_PYTHON / PREFLIGHT_AGENTDOJO_PYTHON | Optional pinned official benchmark runtimes |
+| PREFLIGHT_TRACE_FILE | Optional metadata-only rotating JSON trace export |
+| PREFLIGHT_METRICS_TOKEN | Bearer credential required for global metrics |
+| GRAFANA_PASSWORD | Optional monitoring profile secret |
 
-Run `bash scripts/worker.sh` for queued jobs. It has a two-active-run per-project claim limit, 20 queued-run quota, 64 maximum selected attempts, 1–120 second run timeout, one retry for infrastructure failures and per-attempt persistent progress. Worker leases expire after 180 seconds. Expired execution becomes BLOCKED; create a new run to retry with explicit provenance. The trusted demo button runs bounded built-in jobs in-process for convenient offline use.
+ARQ reconciles durable database jobs into backend-specific Redis queues. Claims, idempotency and leases prevent duplicate ownership. Two active runs and twenty queued runs per project, sixty-four selected attempts and bounded deadlines limit work. Native expired jobs resume persisted progress; ambiguous connected side effects become BLOCKED rather than blindly rerunning a POST. Cancellation is checked between attempts and during supported Docker/subprocess execution. The native development execute endpoint is restricted to trusted built-in fixtures. The legacy database-poll worker remains available.
 
-Optional Redis/ARQ bridge source is `preflight.arq_worker`. Install project queue extras in a network-enabled environment and launch `arq preflight.arq_worker.WorkerSettings`; this path is not verified locally. Enqueue failure retains a durable database job and logs the fallback. The sync SQLAlchemy service is a local fallback; a fully async persistence migration is outstanding.
+## Migrations and recovery
 
-## Migrations
-`DATABASE_URL=... .venv/bin/alembic upgrade head`. Alembic's frozen initial migration defines 26 application tables; upgrade/downgrade and drift checks pass on SQLite. `Database.initialize` uses create_all only for development/in-process fixture startup. PostgreSQL and migration concurrency need verification before production. Compose API runs Alembic before serving.
+Run `.venv/bin/alembic upgrade head` with DATABASE_URL configured. Compose migrates before API startup. Additive migrations preserve original entities; SQLite and actual PostgreSQL migration/worker persistence checks run in CI. Most existing service transactions remain synchronous, while readiness/queue persistence has real SQLAlchemy async integration; this is not a full async conversion.
 
-## Backup and restore
-Stop writes/workers before backups. For SQLite, use Python sqlite3 `Connection.backup` rather than copying an open file. Preserve the artifact directory with restrictive ownership and file modes. For PostgreSQL, use `pg_dump --format=custom` and `pg_restore` under your operator account. Store backups encrypted outside the public repository; verify restores in a separate database. Never put database passwords on shared command lines. PostgreSQL backup/restore has not been executed here.
+Stop writes/workers before backups. For SQLite use sqlite3 Connection.backup; preserve private artifact and credential-key directories. For PostgreSQL use pg_dump custom format and pg_restore into a separate database. Keep passwords outside shared command lines, encrypt backups and verify restoration. Automated production backup/restore remains operator-managed and has not been certified here. Never use down --volumes against user data.
 
-## Observability
-JSON request logs include generated request IDs, OpenTelemetry trace/span IDs, method, status and measured duration; they omit request bodies and cookies. Request, worker and attempt recording spans are implemented. Optional PREFLIGHT_TRACE_FILE exports allowlisted metadata to rotating local JSON logs. `/metrics` exposes global persisted-run count only with a configured PREFLIGHT_METRICS_TOKEN bearer credential; it otherwise returns 401. The monitoring overlay mounts that token for Prometheus. Its Compose configuration is checked, but Prometheus/Grafana runtime operation remains unverified. Do not expose monitoring publicly. See architecture/TRACING.md.
+## Observability and deployment
 
-## Deployment considerations
-Provider-neutral components are API, worker, relational database, optional Redis and private artifact store. Set TLS/secure cookies, enforce ingress/egress policy, cap request sizes and use isolated execution hosts. Do not expose arbitrary hostile code on Docker. S3-compatible storage has an interface boundary only; a concrete backend and MinIO deployment are outstanding. PDF export is not implemented. No cloud or paid services were provisioned.
+Structured JSON logs omit bodies/cookies and correlate requests, workers and attempt-recording spans. PREFLIGHT_TRACE_FILE exports allowlisted metadata; no automatic external collector is contacted. Metrics require the configured token. Optional monitoring Compose syntax is checked; Prometheus/Grafana runtime remains unverified. S3/MinIO and OTLP export are not implemented. Local artifact snapshots and JSON/HTML/PDF exports work without those services.
+
+Before nonlocal deployment configure TLS, secure cookies, protected credentials, ingress/egress policy and independent execution hosts. Docker is an initial boundary; arbitrary public hostile code is refused until a stronger backend exists. No paid cloud infrastructure was provisioned.
 
 ## Troubleshooting
-- `could not bind ... 8000`: active coding sandbox denies sockets. Run from an ordinary authorized terminal; do not change OS security policies.
-- Next ENOTCACHED: Next/React/query/form/component dependencies are unavailable offline. Use the compiled FastAPI interface while completing the requested React stack on a network-enabled machine.
-- Docker run BLOCKED: install/configure Docker through normal operator procedures, build the native runner, and launch a host worker. Do not mount the daemon socket in agents.
-- Session 403: obtain csrf_token from `/auth/me`, and send X-CSRF-Token on writes. Expired sessions require a fresh login.
-- INCONCLUSIVE gate: inspect missing_evidence; do not force missing tests to pass.
-- Git commit refused: configure your own existing author identity. GitHub invalid token requires manual reauthentication; no credentials were printed or changed.
+
+- Port occupied: select a free host port using the variables above; preserve existing processes.
+- Docker permission denied: operator must provide authorized access or use verified CI. Do not change host permissions or mount the socket into application/agent containers.
+- Queue waiting: inspect Settings readiness, the correct backend queue and actual worker health key.
+- Official benchmark BLOCKED: install its documented pinned runtime and configure the path. Native evaluations remain available.
+- HTTP connection denied: inspect exact origin authorization; do not broaden private/network allowlists indiscriminately.
+- Session 403: refresh csrf_token via auth/me and supply X-CSRF-Token on writes; expired sessions require login.
+- INCONCLUSIVE release: inspect missing_evidence rather than forcing a pass.

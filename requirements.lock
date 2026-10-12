@@ -39,3 +39,8 @@ PyJWT==2.15.1
 hiredis==3.4.2
 opentelemetry-sdk==1.45.1
 opentelemetry-semantic-conventions==0.66b1
+fpdf2==2.8.9
+Pillow==12.3.0
+fonttools==4.66.1
+defusedxml==0.7.1
+pypdf==6.20.0

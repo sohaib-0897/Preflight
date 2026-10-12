@@ -1,8 +1,9 @@
 # Contributing
-Use Python 3.12 and Node 22. Create a virtual environment, install `requirements.lock`, and run `bash scripts/check.sh`. Keep runtime packages in the monorepo boundaries and publish reusable SDK packages separately. Tests use a real SQLite database and ASGI transport; no network sockets are required for backend integration coverage.
 
-Add native scenarios with evidence validators, failure cases and replay tests. Preserve benchmark/configuration versions. Never convert infrastructure errors into failed agent tasks without an explicit policy. Require organization authorization before accessing projects, runs, reviews or artifacts.
+Use Python 3.12 and Node 22. Install the committed requirements/npm locks in isolated environments. The maintained UI is Next App Router in apps/web/app and apps/web/components; apps/web/src is the compatibility interface. Preserve API contracts, migrations and stored schemas.
 
-Frontend source is `apps/web/src/app.ts`; regenerate its checked-in browser module with `npm run build:offline`. The Next host remains unverified until dependencies can be installed. Run `npm run test:e2e` on a machine that permits local sockets and a sandboxed Chrome launch. Do not disable OS security controls to make tests pass.
+Run `bash scripts/check.sh`, `npm --prefix apps/web test`, the production Next build and Playwright with playwright.next.config.ts. Complete checks include actual TCP/TLS gateways, sandboxed Chromium and live Docker: do not disable security controls or mandatory tests to obtain a pass. Without daemon access, record that restriction and inspect the actual remote CI results.
 
-No fabricated benchmark results, synthetic usage presented as measured usage, secrets, generated datasets or model binaries in commits. Record exact verification and limitations in docs/implementation. Configure your own Git identity; do not invent contributor identities.
+Add scenarios with evidence validators, negative outcomes, version provenance and meaningful tests. Do not score infrastructure failures as agent failures. Enforce tenant authorization in backend services and artifact access. Unknown evidence stays unknown; repeated deterministic trials do not increase independent sample size.
+
+Framework and official benchmark dependencies are isolated in requirements/agents and requirements/benchmarks. Run their actual smoke scripts; normalization fixtures alone are insufficient. Never invoke billable APIs automatically. Do not commit secrets, model binaries, downloaded wheels, generated datasets or artifacts. Record exact verification and limitations in docs/implementation. Use your configured Git identity.

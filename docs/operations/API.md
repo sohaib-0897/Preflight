@@ -1,25 +1,31 @@
 # API reference
-Version prefix: /api/v1. Generated OpenAPI: /openapi.json; browser docs: /docs. Obtain an opaque cookie with auth/register or auth/login, obtain csrf_token from returned user/auth/me, and supply X-CSRF-Token on every authenticated write. API errors have detail and standardized error fields for HTTP/validation failures. Body budget is 64 KiB.
+
+Prefix /api/v1. Generated /openapi.json and /docs are authoritative for request schemas. Register/login returns an opaque HttpOnly session and csrf_token; supply X-CSRF-Token on authenticated writes. HTTP/validation errors use standardized detail/error fields. The request body budget is 64 KiB. Authorization is enforced in backend queries/services.
 
 | Resource | Operations |
 |---|---|
-| /auth/register, /auth/login, /auth/me, /auth/logout | Register, sign in, session context, invalidate |
-| /organizations, /organizations/{id}/members, /organizations/{id}/audit | Organization creation, membership, audit |
-| /workspaces, /organizations/{id}/workspaces | Workspace list/create |
-| /workspaces/{id}/projects | Project list/create; list supports offset/limit |
-| /projects/{id}/agents, /agents/{id}/versions | Register native agents, append immutable versions |
-| /projects/{id}/datasets | Immutable native scenario subsets |
-| /benchmarks | Registry and explicit upstream availability |
-| /projects/{id}/runs | Queue/list; status, offset and limit filters |
-| /runs/{id}, /runs/{id}/cancel, /runs/{id}/execute | Evidence, cancel, bounded trusted demo execution |
-| /runs/{id}/events | Finite SSE progress/transition snapshot; reconnect for new events |
-| /runs/{id}/attempts/{attempt}/trace | Trace graph and diagnostics |
-| /runs/{id}/replay/{attempt} | Deterministic tool replay |
-| /runs/{id}/reviews, /runs/{id}/attempts/{attempt}/reviews | Review history/append |
-| /comparisons | baseline/candidate run IDs |
-| /trace-comparisons | baseline/candidate run and attempt IDs |
-| /projects/{id}/policies, /runs/{id}/release | Immutable policy versions, release decision |
-| /runs/{id}/report.json, /runs/{id}/report.html | Authorized redacted exports |
-| /runs/{id}/artifacts, /artifacts/{id} | Snapshot creation/list, integrity-checked download |
+| /auth/register, /auth/login, /auth/me, /auth/logout | Account and session |
+| /organizations, /organizations/{id}/members, /organizations/{id}/audit | Organizations, roles, audit |
+| /workspaces, /organizations/{id}/workspaces | Workspaces |
+| /workspaces/{id}/projects | Project creation/list with offset/limit |
+| /workspaces/{id}/credentials, /credentials/{id}/revoke | Protected reference creation/list/revocation |
+| /projects/{id}/agents, /agents/{id}/versions, /agents/{id}/health | Native/connected registration, immutable versions, real connection check |
+| /projects/{id}/datasets, /benchmarks | Versioned native/custom scenarios and official readiness |
+| /projects/{id}/sources, /projects/{id}/verify-claims | Versioned local factual evidence |
+| /projects/{id}/runs | Queue/list with status/offset/limit |
+| /runs/{id}, /runs/{id}/cancel, /runs/{id}/execute | Evidence, cancellation, native development execution |
+| /runs/{id}/events | Finite SSE transition snapshot; reconnect for updates |
+| /execution-readiness | Actual configured worker queue readiness |
+| /runs/{id}/attempts/{attempt}/trace, /trace.json | Trace graph/export |
+| /runs/{id}/replay/{attempt}, /trace-comparisons | Recorded native broker replay, structural comparisons |
+| /runs/{id}/attempts/{attempt}/realitycheck, /assessments | Configured validation and preserved assessment history |
+| /projects/{id}/review-queue, /review-assignments/{id}/decision | Assigned review workflow |
+| /runs/{id}/attempts/{attempt}/assign-review, /reviews | Assignment, append audited review |
+| /projects/{id}/security-scans, /runs/{id}/security | Controlled scans and evidence/coverage |
+| /runs/{id}/dependency-scan | Opt-in exact-package OSV lookup |
+| /comparisons | Compatible paired run comparison |
+| /projects/{id}/policies, /runs/{id}/release | Versioned policies and decisions |
+| /runs/{id}/report.json, /report.html, /report.pdf | Authorized redacted exports |
+| /runs/{id}/artifacts, /artifacts/{id} | Integrity-checked snapshots |
 
-Lists are intentionally bounded. Full list pagination/filter/sort support beyond projects/runs remains outstanding. Agent registry accepts only shipped native behaviors in worker dispatch. SDK bridge source is separately qualified; unsupported frameworks/suites return validation errors rather than fabricated successful runs.
+Paths abbreviated as /assessments, /trace.json and /report.html share the prefix on their row. Lists are bounded; project/run pagination and run-status filters are provided. Other lists use fixed limits and frontend search explicitly applies to loaded records. Complete arbitrary-field server sorting/pagination is not implemented. Connected framework gateways execute through the worker, never through the native synchronous demo endpoint. Official readiness requires pinned environments; scripted official presets are separately qualified in UPSTREAM.md.

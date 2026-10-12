@@ -1,3 +1,27 @@
+# Platform phase 10 — reports, onboarding and current documentation
+
+Implemented schema-versioned report identity/provenance, full assessment and human
+review history, security coverage/findings, actual official scoring evidence and
+reproduction limitations. Authorized JSON/HTML exports retain complete evidence;
+PDF provides a bounded, offline overview with explicit Unicode escapes. Unknown
+accuracy is UNASSESSED in exports and UI. Reports offers real download links;
+onboarding uses actual project/agent/run state and mobile Settings permits logout.
+Replaced obsolete setup/API/SDK/operations/frontend guides with current contracts.
+
+Local verification: 74 non-Docker Python tests, including parsed PDF contents,
+Unicode/unknown outcome handling and cross-tenant PDF rejection. Production Next
+build passed; PDF first page rendered and reviewed at .local/phase10-pdf.png.
+All ten sandboxed-Chromium desktop/mobile journeys passed, including PDF download, Reports links and mobile logout; four Vitest component tests passed. Reports screenshots reviewed. Legacy frontend checks, pip check, targeted Ruff and repository hygiene passed. Remote phase 10 verification pending push. CI artifact upload
+explicitly includes only the whitelisted hidden report paths, never arbitrary .local.
+
+Phase 9 remote confirmation: 16a733358a74e85909a764861606b1de3f5530cf,
+https://github.com/sohaib-0897/Preflight/actions/runs/38213300603 SUCCESS (all seven jobs).
+Actual remote evidence: 87 Python tests including 15 live Docker checks, ten Next
+browser journeys, two desktop/mobile Compose journeys, real PostgreSQL migrations,
+Redis queue dispatch and native Docker execution, three actual framework runtimes
+and both official scripted smoke integrations. CI Compose screenshots reviewed.
+Local daemon access remains denied; no local container success is claimed.
+
 ## Platform phase 9 — integrated Compose implementation
 
 Added pinned multi-stage Next standalone image, web/API routing and health ordering,

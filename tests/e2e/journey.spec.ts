@@ -26,6 +26,11 @@ test('first user runs native evaluation, inspects state and exports evidence',as
  const download=page.waitForEvent('download');
  await page.getByRole('link',{name:'Export JSON'}).click();
  expect((await download).suggestedFilename()).toMatch(/preflight-.*\.json/);
+ const pdfDownload=page.waitForEvent('download');
+ await page.getByRole('link',{name:'Export PDF'}).click();
+ const pdf=await pdfDownload;expect(pdf.suggestedFilename()).toMatch(/preflight-.*\.pdf/);
+ await pdf.saveAs(`test-results/report-${test.info().project.name}.pdf`);
+ expect(fs.readFileSync((await pdf.path())!).subarray(0,4).toString()).toBe('%PDF');
  // Inject through the test runner's execution context; keep the application's CSP intact.
  await page.evaluate(fs.readFileSync('node_modules/axe-core/axe.min.js','utf8'));
  const violations=await page.evaluate(async()=>{return (await (window as any).axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations;});
@@ -84,6 +89,9 @@ test('first user runs native evaluation, inspects state and exports evidence',as
  await page.goto(`/evaluations/${regression.id}`);
  await page.getByRole('button',{name:'Evaluate release policy'}).click();
  await expect(page.getByText('FAIL',{exact:true})).toBeVisible();
+ await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Reports',exact:true}).click();
+ await expect(page.getByRole('table',{name:'Download evaluation evidence'})).toContainText('PDF');
+ await page.screenshot({path:`test-results/reports-${test.info().project.name}.png`,fullPage:true});
 
 
 });

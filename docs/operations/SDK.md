@@ -1,19 +1,27 @@
-# Python client and agent bridges
-The stdlib client can be used without SDK dependencies by putting `packages/python-sdk` on PYTHONPATH. Standalone packaging source is provided but wheel building remains unverified.
+# Python SDK and executable gateways
+
+The installable package is preflight-agent-sdk in packages/python-sdk. From the checkout:
+
+```bash
+.venv/bin/pip install -e packages/python-sdk
+```
 
 ```python
 import getpass
 from preflight_sdk import Client
-client = Client()
+client = Client("http://127.0.0.1:8000")
 client.login("your-email@example.org", getpass.getpass())
-workspaces = client.request("GET", "/workspaces")
-project = client.request("POST", f"/workspaces/{workspaces[0]['id']}/projects", {"name": "Agent evaluation"})
+workspace = client.request("GET", "/workspaces")[0]
+project = client.request("POST", f"/workspaces/{workspace['id']}/projects", {"name": "Evaluation"})
 agent = client.register_agent(project["id"], "Refund Agent")
-run = client.evaluate(project["id"], agent["versions"][0]["id"], "my-first-evaluation")
+run = client.evaluate(project["id"], agent["versions"][0]["id"], "first-sdk-run")
+# Compose executes through Redis. Standalone native development can execute synchronously:
 client.request("POST", f"/runs/{run['id']}/execute", {})
 print(client.run(run["id"])["summary"])
 ```
 
-LangGraph adapter calls a supplied compiled graph's `ainvoke`, CrewAI a supplied crew's `kickoff_async`, OpenAI Agents a supplied agent via `Runner.run` with bounded max_turns, and CustomAdapter a coroutine returning AgentOutput. These wrappers are checked with offline contract objects; the actual optional frameworks are not installed and real provider execution is **not verified**. No wrapper claims access to hidden reasoning. Events and usage are returned only when accessible; simple framework wrappers capture final outputs only.
+For connected agents, use `client.credential(workspace_id, name, secret)` and `client.register_connection(project_id, name, endpoint, framework, credential_id)`. Secret values are protected server-side; responses contain only reference metadata. Registering a gateway requires operator-origin authorization. The SDK gateway exposes actual health/invoke routes with bounded execution and optional bearer authentication. See packages/python-sdk/examples and [connection contracts](../architecture/AGENT-CONNECTIONS.md).
 
-HTTPAdapter performs HTTPS POST with {inputs, seed}, expects {output, events?, usage?}, requires explicit operator host authorization, rejects private/reserved destinations and redirects, disables inherited proxy settings, and bounds response data. It is a Python integration only; web worker registration currently accepts native modes. Enforce an egress proxy against DNS rebinding before enabling it for tenant-controlled targets. Ollama, hosted provider credential references, remote side-effect bridging and first-class framework/HTTP run dispatch remain outstanding. No paid API is automatically invoked.
+Actual LangGraph 1.2.14, CrewAI 1.15.27 and OpenAI Agents SDK 0.23.1 examples execute offline against the installed frameworks. Hash-locked isolated environments and scripts/framework_smoke.py verify compatible invocation and normalization. Accessible tool events/usage vary by framework; no hidden reasoning is captured. These tests do not establish hosted-model or Ollama execution. Connect those providers through an explicitly configured gateway; they are never silently replaced by a mock.
+
+Connected worker dispatch uses the real HTTP protocol, with fixed authorized origins, IP pinning, TLS identity, redirect/proxy rejection, timeouts and response budgets. Local private origins require an exact operator allowlist entry. Read the security and private-network setup before enabling egress. Connected arbitrary code is not run inside the native Docker fixture image.

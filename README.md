@@ -1,77 +1,75 @@
 # Preflight
 
-Self-hosted, evidence-based evaluation for agent developers. Run deterministic offline agents, verify what actually changed, inspect tool events, compare versions, and apply release policies.
+Self-hosted evaluation for AI agent developers. Execute scenarios, verify actual outcomes, inspect traces, compare versions and enforce evidence-based release policies.
 
-**Status: native evaluation and restricted Docker boundary verified; platform completion in progress.** Next.js/React workflows, PostgreSQL/Compose infrastructure, native releases and representative desktop/mobile accessibility checks are verified. Official benchmark execution and nonnative worker dispatch remain separately qualified. See the [verification matrix](docs/implementation/VERIFICATION.md).
+The offline native suite, Next.js interface, PostgreSQL/Redis worker and restricted Docker runner are exercised in GitHub Actions. Framework examples execute against pinned LangGraph, CrewAI and OpenAI Agents SDK packages. Official τ³/AgentDojo support is a small, authentic scripted smoke subset, **not full benchmark coverage or measured model quality**. See the [verification record](docs/implementation/VERIFICATION.md).
 
-## Working native features
+## Start locally
 
-- Registration, Argon2id passwords, expiring HttpOnly sessions, CSRF, organizations, workspaces, role enforcement, projects and audit records.
-- Native agent registry with immutable version configurations and fingerprints; standalone Python client and framework adapter source.
-- Durable jobs, state transitions, idempotency, bounded trials and concurrency, cancellation, worker leases and infrastructure failure separation.
-- Eight offline scenarios: refunds, false completion, document injection, timeout recovery, unauthorized operations, version regression, trusted factual claims and measured latency.
-- RealityCheck structured scoring, real SQLite side-effect checks, local evidence provenance, confidence/Brier scoring and audited reviews. Optional explicit review overrides preserve automatic evidence.
-- Synthetic security findings, redacted event timelines/graphs, deterministic broker replay and trace comparison.
-- Paired version comparisons, conservative uncertainty, immutable release policies and PASS/FAIL/INCONCLUSIVE decisions.
-- Persisted results, integrity-checked artifact snapshots, authorized JSON/HTML exports, a functional TypeScript interface and CI examples.
-
-No paid API or model download is needed for the native demo. No hidden model reasoning is captured.
-
-## Quick start
-
-From the local checkout, or after these sources have been published to the configured remote, use a normal Ubuntu development machine with network access, Python 3.12 and Node 22:
+Use Ubuntu with Docker Engine and Compose, Git, and free host ports 3000/8000. Python 3.12 and Node 22 are needed only for development. Preserve the existing database password when reusing volumes.
 
 ```bash
 git clone https://github.com/sohaib-0897/Preflight.git
 cd Preflight
+export POSTGRES_PASSWORD='your-private-url-safe-local-password'
+docker compose -f infra/compose/compose.yaml up --build -d
+docker compose -f infra/compose/compose.yaml ps
+```
+
+Open http://localhost:3000. Create your own account with a private passphrase of at least 12 characters; there is no default password. Registration creates an organization and workspace. Create a project, connect an **accurate native agent**, select the native suite and queue an evaluation. The Redis/ARQ worker executes it automatically. PostgreSQL persists results; reports download as JSON, HTML or a PDF overview.
+
+No paid API, model weights or external dataset is required. Native fixture code is trusted demonstration code, not arbitrary-code isolation. The standard stack never mounts the Docker socket. Restricted Docker evaluations require an independently controlled host worker; missing readiness is disclosed. [Compose setup and limits](docs/operations/COMPOSE.md) · [First evaluation](docs/operations/FIRST_EVALUATION.md).
+
+## Supported workflows
+
+- Account sessions, Argon2id passwords, HttpOnly cookies, CSRF, organizations/workspaces and owner/admin/developer/viewer authorization.
+- Agent registration, immutable versions, protected credential references and executable HTTP/Python/framework gateways. Endpoint origins require operator authorization; DNS/IP pinning, redirect rejection and request limits enforce the connection boundary.
+- Durable Redis/ARQ jobs, separate native/Docker queues, bounded trials/concurrency, cancellation, leases, idempotency and explicit infrastructure failures.
+- Eight offline native scenarios: real refund state, false completion, injection, timeout recovery, authorization denial, version regression, local factual evidence and measured latency.
+- RealityCheck structured/tolerance assertions, bounded read-only SQL against fixture state, versioned factual sources and audited reviewer assignments/overrides.
+- Controlled security scans with synthetic canaries, broker enforcement, severity/evidence/coverage and opt-in supplied-dependency advisory lookup.
+- Correlated OpenTelemetry metadata, interactive event/parent-child explorer, deterministic broker replay and failure groups. No hidden reasoning is captured.
+- Compatible paired comparisons with scenario sample counts/uncertainty, versioned release policies and PASS/FAIL/INCONCLUSIVE decisions. Missing mandatory evidence never silently passes.
+- Authorized redacted reports, review history, benchmark/configuration provenance and integrity-checked artifact snapshots.
+
+Usage/cost are unknown unless a provider reports valid values. An LLM judge, general natural-language fact extraction, hosted inference, S3 storage, OTLP export and microVM execution are not supplied as verified features. Scripted official presets do not yet evaluate arbitrary connected agents. Stronger isolation is required for public arbitrary-code execution; this deployment refuses that workload.
+
+## Development and verification
+
+```bash
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.lock
 npm ci
+npm ci --prefix apps/web
 npm run build:offline
-bash scripts/dev.sh
+bash scripts/dev.sh  # development API, localhost:8000
+# In another terminal:
+npm --prefix apps/web run dev -- --port 3000
 ```
 
-Open http://127.0.0.1:8000. Choose **Create a new account**, enter your private passphrase (12+ characters), create a project, connect an accurate native agent, queue a native suite and select **Execute native demo**. There are no shared demo credentials or default account. See [first evaluation](docs/operations/FIRST_EVALUATION.md).
-
-For the Next.js interface, install with `npm ci --prefix apps/web`, start the API, then run `npm --prefix apps/web run dev -- --port 3000`. Configure `PREFLIGHT_API_ORIGIN` for a nondefault backend. Existing services are preserved; use `PREFLIGHT_PORT` to choose a free API port.
-
-Run the standalone core immediately without opening a port:
+Use PREFLIGHT_PORT for a free development API port and PREFLIGHT_API_ORIGIN for Next routing. The older API-served interface remains a compatibility fallback. Hosted providers are opt-in behind an explicitly configured agent gateway; do not invoke billable endpoints without your own authorized budget.
 
 ```bash
-python3 scripts/demo.py --mode accurate --output .local/report.json
-python3 scripts/demo.py --mode regressed --output .local/regression.json
+bash scripts/check.sh  # all Python checks; live Docker tests require daemon access
+PREFLIGHT_API_ORIGIN=http://127.0.0.1:18000 npm --prefix apps/web run build
+npm --prefix apps/web test
+npx playwright install --with-deps chrome
+npx playwright test -c playwright.next.config.ts
 ```
 
-Accurate demo exits 0; regressed demo exits 1 because the policy fails. These are native fixture outcomes, not official benchmark scores or production accuracy estimates. Unknown API cost and token usage remain null.
+Local Codex cannot access this host's Docker socket. Actual container, PostgreSQL migration, Redis worker and Compose browser verification runs on Docker-enabled GitHub Actions; local tests are reported separately.
 
-## Docker Compose
+## Guides
 
-```bash
-export POSTGRES_PASSWORD='choose-a-private-local-password'
-docker compose -f infra/compose/compose.yaml up --build
-```
+- [Architecture](docs/architecture/001-modular-monolith.md) · [UI](docs/architecture/UI.md)
+- [Operations and recovery](docs/operations/OPERATIONS.md) · [Compose](docs/operations/COMPOSE.md)
+- [SDK](docs/operations/SDK.md) · [Agent connections](docs/architecture/AGENT-CONNECTIONS.md)
+- [Custom suites](docs/benchmarks/AUTHORING.md) · [Official benchmarks](docs/benchmarks/UPSTREAM.md)
+- [RealityCheck](docs/architecture/REALITYCHECK.md) · [Security assessments](docs/security/ASSESSMENTS.md)
+- [Sandbox boundary](docs/security/SANDBOX.md) · [Tracing](docs/architecture/TRACING.md)
+- [Comparison methodology](docs/architecture/COMPARISONS.md) · [Release CI](docs/operations/RELEASE_GATES.md)
+- [API](docs/operations/API.md) · [Handover](docs/implementation/HANDOVER.md)
 
-The API is bound to localhost:8000, with PostgreSQL and Redis on an internal network. This Compose setup runs trusted native demonstrations; Redis/ARQ is optional and the default worker uses the durable database queue. Do not enter a real shared password into committed files. Compose service/migration/worker verification passes on Docker-enabled GitHub Actions. Local Codex daemon access remains blocked. The API image migrates schema before startup. Configure TLS and secure cookies before any nonlocal deployment.
+Open `/docs` or `/openapi.json` for the generated API contract. Set up TLS and secure cookies before nonlocal exposure. This is a developer evaluation platform, not a production security certification.
 
-For restricted Docker jobs, build the native sandbox image and run the operator host worker as described in the [sandbox model](docs/security/SANDBOX.md). The Compose worker does not mount a Docker socket.
-
-## Verification and guides
-
-```bash
-bash scripts/check.sh
-npm run test:e2e  # requires local sockets and sandboxed Chrome
-```
-
-- [Architecture and tradeoffs](docs/architecture/001-modular-monolith.md)
-- [Environment and operations](docs/operations/OPERATIONS.md)
-- [SDK and adapters](docs/operations/SDK.md)
-- [Custom suites and scoring](docs/benchmarks/AUTHORING.md)
-- [Official benchmark status](docs/benchmarks/UPSTREAM.md)
-- [Security methodology](docs/security/METHODOLOGY.md)
-- [Release gates and CI](docs/operations/RELEASE_GATES.md)
-- [Testing and verified limits](docs/implementation/VERIFICATION.md)
-- [API reference](docs/operations/API.md)
-
-The FastAPI reference is available at `/docs` and `/openapi.json` after startup. The Next App Router host in `apps/web` is built and browser-tested with React/query/forms/Radix components. The older FastAPI-served interface remains a compatibility fallback.
-
-MIT licensed. [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md).
+MIT licensed application. Bundled services and optional benchmarks retain their own licenses. [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md).
