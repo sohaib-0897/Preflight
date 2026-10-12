@@ -1,3 +1,31 @@
+## Platform phase 9 — integrated Compose implementation
+
+Added pinned multi-stage Next standalone image, web/API routing and health ordering,
+real ARQ worker health check, non-root read-only application containers, temporary
+storage and CPU/memory/PID limits. Data services remain unpublished; persistent
+named volumes are preserved. No daemon socket is mounted. Python updates to 3.12.15,
+Node is 22.23.3, PostgreSQL stays in major 17 at official patch 17.11. Ports can be
+changed without changing internal routing. Compose now includes the complete safe
+native web/API/PostgreSQL/Redis/worker stack.
+
+Added actual full-stack desktop/mobile Chromium journey to CI's Compose verifier:
+automatic queue execution, persistent results, release decision and report export.
+Local Compose syntax, 72 backend tests, production Next build and ten
+desktop/mobile journeys pass. Actual local Redis 8.0.5 verification executed 32
+native attempts and demonstrated a Docker job staying in its separate queue;
+Docker execution remains reserved for CI. Targeted Ruff and secret scan pass; container startup/build remains
+IMPLEMENTED BUT UNVERIFIED locally because daemon access is denied. CI verification
+pending this phase push. No local container success is claimed. Independent backend queues and actual worker readiness are implemented. Host Docker worker
+setup and optional benchmark/gateway environments remain operator-managed;
+see docs/operations/COMPOSE.md for precise limitations.
+
+Phase 8 remote confirmation: 1a98d10dda653e3233ce59d312c8f3649a70ad85,
+https://github.com/sohaib-0897/Preflight/actions/runs/38212003822 SUCCESS.
+Actual negative CI verified in closed, unmerged draft PR #1:
+https://github.com/sohaib-0897/Preflight/actions/runs/38212112251 failed release-gate
+with exit 1 and uploaded FAIL report, 50% task success. This is intentional negative
+verification, not a failing main baseline. Branch 0f60b02 changes only the candidate.
+
 ## Platform phase 8 — comparisons and evidence-required release gates
 
 Expanded compatible paired comparisons with dimension-specific denominators,

@@ -16,11 +16,27 @@ def settings():
     return RedisSettings.from_dsn(os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0"))
 
 
-async def enqueue(run_id, pool=None):
+def queue_name(backend="trusted-demo"):
+    base = os.environ.get("PREFLIGHT_QUEUE_PREFIX", "arq:queue")
+    return base if backend == "trusted-demo" else base + ":docker"
+
+
+def worker_backend():
+    backend = os.environ.get("PREFLIGHT_WORKER_BACKEND", "trusted-demo")
+    if backend not in {"trusted-demo", "docker"}:
+        raise ValueError("Unsupported worker backend")
+    return backend
+
+
+async def enqueue(run_id, pool=None, backend="trusted-demo"):
     owned = pool is None
     pool = pool or await create_pool(settings())
     try:
-        return await pool.enqueue_job("evaluate", run_id, _job_id="preflight-" + run_id)
+        prefix = os.environ.get("PREFLIGHT_QUEUE_PREFIX")
+        job_id = prefix + ":" + run_id if prefix else "preflight-" + run_id
+        return await pool.enqueue_job(
+            "evaluate", run_id, _job_id=job_id, _queue_name=queue_name(backend)
+        )
     finally:
         if owned:
             await pool.aclose()
@@ -65,13 +81,16 @@ async def dispatch(ctx):
         run_ids = list(
             await db.scalars(
                 select(EvaluationRun.id)
-                .where(EvaluationRun.status == "QUEUED")
+                .where(
+                    EvaluationRun.status == "QUEUED",
+                    EvaluationRun.config["backend"].as_string() == worker_backend(),
+                )
                 .order_by(EvaluationRun.created_at)
                 .limit(100)
             )
         )
     for run_id in run_ids:
-        await enqueue(run_id, ctx["redis"])
+        await enqueue(run_id, ctx["redis"], backend=worker_backend())
 
 
 async def startup(ctx):
@@ -89,6 +108,10 @@ async def shutdown(ctx):
 
 
 async def evaluate(ctx, run_id):
+    with ctx["database"].sessions() as db:
+        run = db.get(EvaluationRun, run_id)
+        if run and run.config["backend"] != ctx.get("backend", worker_backend()):
+            raise ValueError("Worker queue/backend mismatch; refusing execution")
     stop = threading.Event()
     ctx.setdefault("stops", set()).add(stop)
     task = asyncio.create_task(asyncio.to_thread(perform, ctx["database"], run_id, stop))
@@ -109,6 +132,7 @@ async def evaluate(ctx, run_id):
 
 
 class WorkerSettings:
+    queue_name = queue_name(worker_backend())
     functions = [evaluate]
     cron_jobs = [cron(dispatch, second=set(range(0, 60, 5)), run_at_startup=True)]
     on_startup = startup
@@ -120,4 +144,6 @@ class WorkerSettings:
     job_completion_wait = 135
     keep_result = 10
     health_check_interval = 10
-    health_check_key = "preflight:worker:health"
+    health_check_key = "preflight:worker:health" + (
+        ":docker" if worker_backend() == "docker" else ""
+    )

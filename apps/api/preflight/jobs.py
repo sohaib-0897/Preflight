@@ -107,7 +107,7 @@ async def create_run(project_id: str, body: RunInput, user=Depends(current_user)
     if os.environ.get("REDIS_URL"):
         try:
             from .arq_worker import enqueue
-            await enqueue(result["id"])
+            await enqueue(result["id"],backend=result["config"]["backend"])
         except Exception:
             import logging
             logging.getLogger("preflight").warning(json.dumps({"event":"redis_enqueue_unavailable","run_id":result["id"],"fallback":"database dispatch on recovery"}))
@@ -452,3 +452,27 @@ def export_trace(run_id: str, attempt_id: str, user=Depends(current_user), db=De
     result=attempt.result
     payload={'run_id':run_id,'attempt_id':attempt_id,'scenario_id':attempt.scenario_id,'trial':attempt.trial,'telemetry':result.get('telemetry'),'events':result.get('events',[]),'diagnostics':result.get('diagnostics'),'state':result.get('state'),'replay_semantics':'Recorded tool interactions only; fresh model execution is not deterministic replay'}
     return Response(json.dumps(redact(payload)),media_type='application/json',headers={'Content-Disposition':f'attachment; filename="preflight-trace-{attempt_id}.json"'})
+
+
+@router.get('/execution-readiness')
+async def execution_readiness(user=Depends(current_user)):
+    result={'trusted-demo':{'status':'AVAILABLE','method':'Trusted offline fixture code; synchronous demo endpoint available'},'docker':{'status':'BLOCKED','reason':'Authorized independent host worker and image required; no daemon socket in application containers'}}
+    if os.environ.get('REDIS_URL'):
+        from .arq_worker import settings
+        from arq.connections import create_pool
+        pool=None
+        try:
+            pool=await create_pool(settings())
+            native=bool(await pool.get('preflight:worker:health'))
+            docker=bool(await pool.get('preflight:worker:health:docker'))
+            result['background_queue']={'status':'AVAILABLE' if native else 'BLOCKED','method':'Real Redis-backed worker health key'}
+            if docker:
+                result['docker']={'status':'AVAILABLE','method':'Independent Docker worker reports healthy; per-job container provisioning is still verified at execution'}
+        except Exception:
+            result['background_queue']={'status':'BLOCKED','reason':'Redis or worker health unavailable'}
+        finally:
+            if pool is not None:
+                await pool.aclose()
+    else:
+        result['background_queue']={'status':'NOT_RUN','reason':'Redis coordination not configured; legacy database worker readiness is not reported'}
+    return result

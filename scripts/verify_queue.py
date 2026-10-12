@@ -50,13 +50,26 @@ async def main():
                         },
                     ).json()
                     runs = []
-                    for index in range(3):
+                    for index in range(4):
                         run = client.post(
                             f"/api/v1/projects/{project['id']}/runs",
                             json={
                                 "version_id": agent["versions"][0]["id"],
                                 "idempotency_key": f"real-queue-{index}",
-                                "trials": 2,
+                                "trials": 2 if index < 3 else 1,
+                                "backend": "docker" if index == 3 else "trusted-demo",
+                                "scenarios": ["refund"]
+                                if index == 3
+                                else [
+                                    "refund",
+                                    "false-completion",
+                                    "prompt-injection",
+                                    "tool-timeout",
+                                    "unauthorized",
+                                    "version-regression",
+                                    "factual",
+                                    "latency",
+                                ],
                             },
                         ).json()
                         runs.append(run["id"])
@@ -66,9 +79,21 @@ async def main():
             runs = await asyncio.to_thread(setup)
             jobs = [
                 await pool.enqueue_job("evaluate", run_id, _job_id=f"{queue}:{run_id}")
-                for run_id in runs
+                for run_id in runs[:3]
             ]
             assert await pool.enqueue_job("evaluate", runs[0], _job_id=f"{queue}:{runs[0]}") is None
+            from preflight.arq_worker import enqueue, queue_name
+
+            old_prefix = os.environ.get("PREFLIGHT_QUEUE_PREFIX")
+            os.environ["PREFLIGHT_QUEUE_PREFIX"] = queue
+            try:
+                docker_job = await enqueue(runs[3], pool, backend="docker")
+                assert await pool.zcard(queue_name("docker")) == 1
+            finally:
+                if old_prefix is None:
+                    os.environ.pop("PREFLIGHT_QUEUE_PREFIX", None)
+                else:
+                    os.environ["PREFLIGHT_QUEUE_PREFIX"] = old_prefix
             worker = Worker(
                 [evaluate],
                 redis_pool=pool,
@@ -89,6 +114,23 @@ async def main():
                     run = db.get(EvaluationRun, run_id)
                     assert run.status == "COMPLETED" and run.summary["sample_size"] == 16
                 assert db.get(EvaluationRun, runs[2]).status == "CANCELLED"
+            with database.sessions() as db:
+                assert db.get(EvaluationRun, runs[3]).status == "QUEUED"
+            if os.environ.get("PREFLIGHT_QUEUE_DOCKER_LIVE") == "1":
+                docker_worker = Worker(
+                    [evaluate],
+                    redis_pool=pool,
+                    queue_name=queue + ":docker",
+                    burst=True,
+                    handle_signals=False,
+                    ctx={"database": database, "stops": set(), "backend": "docker"},
+                    keep_result=30,
+                )
+                await docker_worker.async_run()
+                assert await docker_job.result(timeout=3) is True
+                with database.sessions() as db:
+                    assert db.get(EvaluationRun, runs[3]).status == "COMPLETED"
+                    assert db.get(EvaluationRun, runs[3]).summary["task_success_rate"] == 1
             # Delete only this script's random-prefix keys, never flush Redis.
             keys = [key async for key in pool.scan_iter(match=f"*{queue}*")]
             if keys:

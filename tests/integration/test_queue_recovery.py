@@ -61,3 +61,25 @@ def test_actual_concurrent_duplicate_claim_and_worker_stop(client, app, monkeypa
 def test_async_database_readiness_uses_real_driver(app):
     app.state.db.initialize()
     assert asyncio.run(app.state.db.readiness()) == 1
+
+
+def test_queue_capabilities_and_readiness_without_daemon(client, app, monkeypatch):
+    from preflight.arq_worker import queue_name, worker_backend, evaluate
+    from integration.test_jobs import create_run
+    import asyncio
+
+    _, _, run = create_run(client, backend="docker")
+    monkeypatch.setenv("PREFLIGHT_QUEUE_PREFIX", "fixture-isolated-queue")
+    assert queue_name("docker") == "fixture-isolated-queue:docker"
+    assert queue_name() == "fixture-isolated-queue"
+    monkeypatch.setenv("PREFLIGHT_WORKER_BACKEND", "trusted-demo")
+    assert worker_backend() == "trusted-demo"
+    import pytest
+
+    with pytest.raises(ValueError, match="mismatch"):
+        asyncio.run(evaluate({"database": app.state.db, "stops": set()}, run["id"]))
+    assert client.get(f"/api/v1/runs/{run['id']}").json()["status"] == "QUEUED"
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    readiness = client.get("/api/v1/execution-readiness").json()
+    assert readiness["docker"]["status"] == "BLOCKED"
+    assert readiness["background_queue"]["status"] == "NOT_RUN"
