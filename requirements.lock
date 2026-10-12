@@ -37,3 +37,5 @@ aiosqlite==0.22.1
 greenlet==3.5.6
 PyJWT==2.15.1
 hiredis==3.4.2
+opentelemetry-sdk==1.45.1
+opentelemetry-semantic-conventions==0.66b1

@@ -13,6 +13,12 @@ from sqlalchemy import text
 from .db import Database
 
 log = logging.getLogger("preflight")
+if not log.handlers:
+    handler=logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    log.addHandler(handler)
+log.setLevel(logging.INFO)
+log.propagate=False
 
 
 def create_app(database=None):
@@ -46,13 +52,27 @@ def create_app(database=None):
                     return JSONResponse({"detail": "Request body exceeds 64 KiB"}, status_code=413)
             request._body = bytes(data)
         start = time.perf_counter()
-        response = await call_next(request)
+        from .telemetry import tracer, propagator, identifiers
         request_id = str(uuid.uuid4())
+        with tracer.start_as_current_span('http.request',context=propagator.extract({'traceparent':request.headers.get('traceparent','')}),record_exception=False,set_status_on_exception=False) as span:
+            span.set_attribute('http.request.method',request.method)
+            try:
+                response = await call_next(request)
+            except Exception:
+                from opentelemetry.trace import Status, StatusCode
+                span.set_status(Status(StatusCode.ERROR,'HTTP request failed'))
+                raise
+            route=request.scope.get('route')
+            span.set_attribute('http.route',getattr(route,'path','unmatched'))
+            span.set_attribute('http.response.status_code',response.status_code)
+            span.set_attribute('preflight.request_id',request_id)
+            correlation_ids=identifiers(span)
+        response.headers['X-Trace-ID']=correlation_ids['trace_id']
         response.headers["X-Request-ID"] = request_id
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Cache-Control"] = "no-store"
-        log.info(json.dumps({"request_id": request_id, "method": request.method, "status": response.status_code, "duration_ms": round((time.perf_counter()-start)*1000, 2)}))
+        log.info(json.dumps({**correlation_ids, "request_id": request_id, "method": request.method, "status": response.status_code, "duration_ms": round((time.perf_counter()-start)*1000, 2)}))
         return response
 
     @app.get("/api/v1/health")
@@ -73,7 +93,11 @@ def create_app(database=None):
         return Response((public / name).read_bytes(), media_type="text/javascript" if name.endswith(".js") else "text/css")
 
     @app.get("/metrics", include_in_schema=False)
-    async def metrics():
+    async def metrics(request: Request):
+        import secrets
+        token=os.environ.get('PREFLIGHT_METRICS_TOKEN')
+        if not token or not secrets.compare_digest(request.headers.get('authorization','').encode(),('Bearer '+token).encode()):
+            return Response(status_code=401)
         from sqlalchemy import select, func
         from .db import EvaluationRun
         with db.sessions() as session:

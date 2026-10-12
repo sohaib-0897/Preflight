@@ -85,6 +85,13 @@ def serialize(run, db, details=False):
             latest_reviews[review.attempt_id] = {"outcome": review.outcome, "justification": review.justification, "review_id": review.id, "at": review.at}
         result["review_overrides"] = latest_reviews
         result["failure_clusters"] = dict(Counter(a.result.get("failure", {}).get("category", "unknown") for a in attempts if a.result.get("failure")))
+        groups = {}
+        for attempt in attempts:
+            failure = attempt.result.get('failure')
+            if failure:
+                groups.setdefault(failure.get('category','unknown'),[]).append({'attempt_id':attempt.id,'scenario_id':attempt.scenario_id,'trial':attempt.trial,'verified':failure.get('verified',False)})
+        result['failure_groups']=[{'category':category,'count':len(examples),'examples':examples} for category,examples in sorted(groups.items())]
+
     return result
 
 
@@ -153,11 +160,13 @@ def create_run_service(project_id: str, body: RunInput, user=Depends(current_use
         config["execution_label"] = "Connected agent in operator-owned environment; local broker side effects verified"
     existing = db.scalar(select(EvaluationRun).where(EvaluationRun.project_id == project_id, EvaluationRun.idempotency_key == body.idempotency_key))
     if existing:
-        if existing.config != config or existing.version_id != version.id:
+        if {k:v for k,v in existing.config.items() if k != "_trace_context"} != config or existing.version_id != version.id:
             raise HTTPException(409, "Idempotency key already used with different configuration")
         return serialize(existing, db)
     if db.scalar(select(func.count()).select_from(EvaluationRun).where(EvaluationRun.project_id == project_id, EvaluationRun.status.in_(ACTIVE | {"QUEUED"}))) >= 20:
         raise HTTPException(429, "Project queued-run quota exceeded")
+    from .telemetry import context_headers
+    config["_trace_context"] = context_headers()
     run = EvaluationRun(project_id=project_id, version_id=version.id, idempotency_key=body.idempotency_key, config=config, status="CREATED")
     db.add(run)
     try:
@@ -222,6 +231,18 @@ def claim(db, run_id):
 
 
 def perform(database, run_id, stop=None):
+    from .telemetry import tracer, propagator
+    with database.sessions() as session:
+        run=session.get(EvaluationRun,run_id)
+        carrier=run.config.get('_trace_context',{}) if run else {}
+    with tracer.start_as_current_span('evaluation.run',context=propagator.extract(carrier),record_exception=False,set_status_on_exception=False) as span:
+        span.set_attribute('preflight.run_id',run_id)
+        outcome=_perform(database,run_id,stop)
+        span.set_attribute('preflight.execution_returned',bool(outcome))
+        return outcome
+
+
+def _perform(database, run_id, stop=None):
     with database.sessions() as db:
         run = claim(db, run_id)
         if not run:
@@ -286,6 +307,17 @@ def perform(database, run_id, stop=None):
                     run = db.get(EvaluationRun, run_id)
                     if run.status != "RUNNING" or run.worker_id != worker:
                         return False
+                    from .telemetry import tracer, identifiers
+                    from preflight_eval.diagnostics import diagnose
+                    # Recorded event spans describe collection, not reconstructed model timing.
+                    with tracer.start_as_current_span('evaluation.attempt.record',record_exception=False,set_status_on_exception=False) as span:
+                        span.set_attribute('preflight.run_id',run_id)
+                        span.set_attribute('preflight.scenario_id',scenario)
+                        span.set_attribute('preflight.trial',trial)
+                        result['telemetry']=identifiers(span)
+                        for event in result.get('events',[]):
+                            event.update(result['telemetry'])
+                        result['diagnostics']=diagnose(result)
                     attempt = ScenarioAttempt(run_id=run_id, scenario_id=scenario, trial=trial, result=result)
                     db.add(attempt)
                     db.flush()
@@ -336,10 +368,12 @@ def execute_demo(run_id: str, request: Request, user=Depends(current_user), db=D
 
 @router.post("/runs/{run_id}/replay/{attempt_id}")
 def replay(run_id: str, attempt_id: str, user=Depends(current_user), db=Depends(get_db)):
-    run_access(db, user, run_id, "developer")
+    run, _ = run_access(db, user, run_id, "developer")
     attempt = db.get(ScenarioAttempt, attempt_id)
     if not attempt or attempt.run_id != run_id:
         raise HTTPException(404, "Attempt not found")
+    if run.config["benchmark"] != "native":
+        raise HTTPException(409, "Official upstream replay is not supported by the native broker")
     if attempt.result.get("kind") == "infrastructure":
         raise HTTPException(409, "No agent execution to replay")
     return deterministic_replay(attempt.result)
@@ -403,3 +437,16 @@ def compare_traces(baseline_run: str, baseline_attempt: str, candidate_run: str,
         raise HTTPException(404, "Attempt not found")
     from preflight_eval.diagnostics import trace_diff
     return trace_diff(left.result.get("events",[]),right.result.get("events",[]))
+
+
+@router.get('/runs/{run_id}/attempts/{attempt_id}/trace.json')
+def export_trace(run_id: str, attempt_id: str, user=Depends(current_user), db=Depends(get_db)):
+    from fastapi.responses import Response
+    from preflight_security import redact
+    run_access(db,user,run_id)
+    attempt=db.get(ScenarioAttempt,attempt_id)
+    if not attempt or attempt.run_id!=run_id:
+        raise HTTPException(404,'Attempt not found')
+    result=attempt.result
+    payload={'run_id':run_id,'attempt_id':attempt_id,'scenario_id':attempt.scenario_id,'trial':attempt.trial,'telemetry':result.get('telemetry'),'events':result.get('events',[]),'diagnostics':result.get('diagnostics'),'state':result.get('state'),'replay_semantics':'Recorded tool interactions only; fresh model execution is not deterministic replay'}
+    return Response(json.dumps(redact(payload)),media_type='application/json',headers={'Content-Disposition':f'attachment; filename="preflight-trace-{attempt_id}.json"'})

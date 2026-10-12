@@ -1,3 +1,28 @@
+## Platform phase 7 — correlated tracing and deterministic diagnostics
+
+Implemented real OpenTelemetry request→worker→attempt recording spans, persisted
+correlation identities, metadata-only rotating JSON export, actual structured JSON
+request logging and authenticated global metrics. Added interactive accessible trace
+parent/child navigation, event filtering, structural run comparison and tenant-scoped
+individual JSON export. Deterministic diagnosis retains evidence and distinguishes
+suspected loops from verified failures; agent-reported denials are not broker proof.
+No hidden reasoning or unconfigured LLM hypotheses are generated.
+
+Local verification: 66 backend tests excluding daemon-dependent checks; four React
+component tests; production Next build; desktop/mobile Chromium trace navigation,
+comparison, downloads and axe checks: all ten journeys passed. Desktop/mobile
+trace screenshots were inspected. Exact dropdown labels and a review-navigation
+race were corrected; broker replay excludes reported intentions and refuses
+unsupported upstream tools.
+Targeted Ruff and Mypy pass; pip check has no broken requirements. Monitoring overlay
+Compose config validates with synthetic setup values. Runtime monitoring/OTLP remains
+unverified. Optional trace output is local only. Remote phase 7 verification pending.
+
+Phase 6 remote confirmation: 5b25b0a24bf13fa6c669936b7e36afb84e702ee2,
+https://github.com/sohaib-0897/Preflight/actions/runs/38209723144 SUCCESS,
+all seven jobs including genuine official injection, live Docker and Compose passed.
+See docs/architecture/TRACING.md for semantics and remaining scope.
+
 ## Platform phase 6 — controlled security workflows
 
 Added authorized basic/adversarial scan scheduling, tenant-scoped coverage reports,

@@ -33,6 +33,32 @@ test('first user runs native evaluation, inspects state and exports evidence',as
  await page.keyboard.press('Tab');
  await expect(page.locator(':focus')).toBeVisible();
  await page.screenshot({path:`test-results/journey-${test.info().project.name}.png`,fullPage:true});
+ const baseline=page.url().split('/').pop()!;
+ const session=await (await page.request.get('/api/v1/auth/me')).json();
+ const original=await (await page.request.get(`/api/v1/runs/${baseline}`)).json();
+ const projectId=original.project_id;
+ const headers={'x-csrf-token':session.csrf_token};
+ const second=await page.request.post(`/api/v1/projects/${projectId}/runs`,{headers,data:{version_id:original.version_id,idempotency_key:`trace-browser-${Date.now()}`,scenarios:['refund']}});
+ expect(second.status()).toBe(201);
+ const candidate=(await second.json()).id;
+ expect((await page.request.post(`/api/v1/runs/${candidate}/execute`,{headers,data:{}})).status()).toBe(200);
+ await page.reload();
+ await page.getByRole('button',{name:'Trace',exact:true}).click();
+ const nodes=page.getByRole('navigation',{name:'Execution graph'}).getByRole('button');
+ await nodes.nth(1).focus();await page.keyboard.press('Enter');
+ await expect(page.getByLabel('Selected trace event')).toContainText('trace_id');
+ await page.getByRole('button',{name:'Go to parent'}).click();
+ await expect(page.getByRole('heading',{name:'Selected event #0'})).toBeVisible();
+ await page.getByLabel('Candidate run',{exact:true}).selectOption(candidate);
+ await page.getByRole('button',{name:'Compare traces',exact:true}).click();
+ await expect(page.getByLabel('Trace differences')).toContainText('equal_ignoring_timings');
+ const traceDownload=page.waitForEvent('download');await page.getByRole('link',{name:'Export trace JSON'}).click();
+ expect((await traceDownload).suggestedFilename()).toMatch(/preflight-trace-/);
+ await page.evaluate(fs.readFileSync('node_modules/axe-core/axe.min.js','utf8'));
+ const traceViolations=await page.evaluate(async()=>(await (window as any).axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations);
+ expect(traceViolations).toEqual([]);
+ await page.screenshot({path:`test-results/trace-${test.info().project.name}.png`,fullPage:true});
+
 });
 
 test('keyboard account switch and dialog focus',async({page})=>{

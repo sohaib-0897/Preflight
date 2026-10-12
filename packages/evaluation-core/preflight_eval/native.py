@@ -87,8 +87,8 @@ def execute(scenario_id, mode="accurate", seed=0):
 
 def deterministic_replay(result):
     """Replays broker tool interactions; never reruns a model."""
-    events = [e for e in result["events"] if e["kind"] == "tool_call"]
-    broker = Broker(fail_first=bool(events and events[0]["status"] == "timeout"))
+    events = [e for e in result["events"] if e["kind"] == "tool_call" and e.get("source") != "agent-reported"]
+    broker = Broker(fail_first=bool(events and events[0].get("status") == "timeout"))
     try:
         for event in events:
             broker.call(event["tool"], event["arguments"])

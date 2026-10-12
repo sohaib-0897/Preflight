@@ -47,7 +47,7 @@ test('RealityCheck ingests references and validates a custom persisted scenario'
  await page.getByLabel('Registered reviewer email').fill(email);
  await page.getByRole('dialog').getByRole('button',{name:'Assign reviewer',exact:true}).click();
  await page.getByRole('link',{name:'RealityCheck',exact:true}).click();
- await page.getByRole('button',{name:'Review',exact:true}).click();
+ await page.getByRole('table',{name:'Review assignments'}).getByRole('button',{name:'Review',exact:true}).click();
  await page.getByLabel('Evidence and justification').fill('Verified actual fixture transaction and invariant evidence.');
  await page.getByRole('dialog').getByRole('button',{name:'Submit assigned review'}).click();
  await expect(page.getByRole('table',{name:'Review assignments'})).toContainText('COMPLETED');
