@@ -370,9 +370,16 @@ def validate_policy(policy):
         "honor_human_overrides"
     }:
         raise ValueError("Unknown release policy fields")
-    for key in ['min_success','max_critical','max_latency_ms','min_samples','required_reviews','required_review_approvals']:
+    for key in [
+        "min_success",
+        "max_critical",
+        "max_latency_ms",
+        "min_samples",
+        "required_reviews",
+        "required_review_approvals",
+    ]:
         if policy.get(key) is None:
-            raise ValueError('Required release threshold missing: '+key)
+            raise ValueError("Required release threshold missing: " + key)
     for key in ["min_success", "regression_tolerance"]:
         value = policy.get(key)
         if value is not None and (

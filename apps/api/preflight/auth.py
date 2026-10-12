@@ -28,7 +28,11 @@ class Credentials(BaseModel):
     @classmethod
     def email_valid(cls, value):
         value = value.strip().lower()
-        if value.count("@") != 1 or "." not in value.split("@")[1] or any(c.isspace() for c in value):
+        if (
+            value.count("@") != 1
+            or "." not in value.split("@")[1]
+            or any(c.isspace() for c in value)
+        ):
             raise ValueError("A valid email address is required")
         return value
 
@@ -78,7 +82,9 @@ def current_user(request: Request, db=Depends(get_db)):
 
 
 def authorize(db, user, org_id, role="viewer"):
-    membership = db.scalar(select(Membership).where(Membership.user_id == user.id, Membership.org_id == org_id))
+    membership = db.scalar(
+        select(Membership).where(Membership.user_id == user.id, Membership.org_id == org_id)
+    )
     if not membership:
         raise HTTPException(404, "Resource not found")
     if ROLE_RANK[membership.role] < ROLE_RANK[role]:
@@ -117,9 +123,17 @@ def rate_limit(request):
 def new_session(db, user, response):
     token = secrets.token_urlsafe(32)
     csrf = secrets.token_urlsafe(32)
-    db.add(Session(digest=digest(token), user_id=user.id, csrf=csrf, expires=time.time()+86400))
+    db.add(Session(digest=digest(token), user_id=user.id, csrf=csrf, expires=time.time() + 86400))
     db.commit()
-    response.set_cookie("preflight_session", token, httponly=True, secure=os.environ.get("PREFLIGHT_COOKIE_SECURE", "false").lower() == "true", samesite="strict", max_age=86400, path="/")
+    response.set_cookie(
+        "preflight_session",
+        token,
+        httponly=True,
+        secure=os.environ.get("PREFLIGHT_COOKIE_SECURE", "false").lower() == "true",
+        samesite="strict",
+        max_age=86400,
+        path="/",
+    )
     return {"id": user.id, "email": user.email, "csrf_token": csrf}
 
 
@@ -157,7 +171,15 @@ def login(body: Credentials, request: Request, response: Response, db=Depends(ge
 def me(request: Request, user=Depends(current_user), db=Depends(get_db)):
     session = db.get(Session, digest(request.cookies["preflight_session"]))
     memberships = db.scalars(select(Membership).where(Membership.user_id == user.id)).all()
-    return {"id": user.id, "email": user.email, "csrf_token": session.csrf, "organizations": [{"id": m.org_id, "name": db.get(Organization, m.org_id).name, "role": m.role} for m in memberships]}
+    return {
+        "id": user.id,
+        "email": user.email,
+        "csrf_token": session.csrf,
+        "organizations": [
+            {"id": m.org_id, "name": db.get(Organization, m.org_id).name, "role": m.role}
+            for m in memberships
+        ],
+    }
 
 
 @router.post("/auth/logout")
@@ -183,7 +205,10 @@ def create_org(body: Name, user=Depends(current_user), db=Depends(get_db)):
 @router.get("/organizations/{org_id}/members")
 def members(org_id: str, user=Depends(current_user), db=Depends(get_db)):
     authorize(db, user, org_id)
-    return [{"email": db.get(User, m.user_id).email, "role": m.role} for m in db.scalars(select(Membership).where(Membership.org_id == org_id))]
+    return [
+        {"email": db.get(User, m.user_id).email, "role": m.role}
+        for m in db.scalars(select(Membership).where(Membership.org_id == org_id))
+    ]
 
 
 @router.post("/organizations/{org_id}/members", status_code=201)
@@ -194,7 +219,9 @@ def add_member(org_id: str, body: MemberInput, user=Depends(current_user), db=De
     target = db.scalar(select(User).where(User.email == body.email.strip().lower()))
     if not target:
         raise HTTPException(404, "User must register first")
-    if db.scalar(select(Membership).where(Membership.user_id == target.id, Membership.org_id == org_id)):
+    if db.scalar(
+        select(Membership).where(Membership.user_id == target.id, Membership.org_id == org_id)
+    ):
         raise HTTPException(409, "Already a member")
     db.add(Membership(org_id=org_id, user_id=target.id, role=body.role))
     audit(db, user, org_id, "member.add", target.id)
@@ -205,7 +232,12 @@ def add_member(org_id: str, body: MemberInput, user=Depends(current_user), db=De
 @router.get("/workspaces")
 def workspaces(user=Depends(current_user), db=Depends(get_db)):
     orgs = select(Membership.org_id).where(Membership.user_id == user.id)
-    return [{"id": w.id, "org_id": w.org_id, "name": w.name} for w in db.scalars(select(Workspace).where(Workspace.org_id.in_(orgs)).order_by(Workspace.name))]
+    return [
+        {"id": w.id, "org_id": w.org_id, "name": w.name}
+        for w in db.scalars(
+            select(Workspace).where(Workspace.org_id.in_(orgs)).order_by(Workspace.name)
+        )
+    ]
 
 
 @router.post("/organizations/{org_id}/workspaces", status_code=201)
@@ -220,14 +252,29 @@ def create_workspace(org_id: str, body: Name, user=Depends(current_user), db=Dep
 
 
 @router.get("/workspaces/{workspace_id}/projects")
-def projects(workspace_id: str, offset: int = 0, limit: int = 50, user=Depends(current_user), db=Depends(get_db)):
+def projects(
+    workspace_id: str,
+    offset: int = 0,
+    limit: int = 50,
+    user=Depends(current_user),
+    db=Depends(get_db),
+):
     w = db.get(Workspace, workspace_id)
     if not w:
         raise HTTPException(404, "Resource not found")
     authorize(db, user, w.org_id)
     if offset < 0 or not 1 <= limit <= 100:
         raise HTTPException(422, "Invalid pagination")
-    return [{"id": p.id, "name": p.name, "workspace_id": p.workspace_id} for p in db.scalars(select(Project).where(Project.workspace_id == workspace_id).order_by(Project.name).offset(offset).limit(limit))]
+    return [
+        {"id": p.id, "name": p.name, "workspace_id": p.workspace_id}
+        for p in db.scalars(
+            select(Project)
+            .where(Project.workspace_id == workspace_id)
+            .order_by(Project.name)
+            .offset(offset)
+            .limit(limit)
+        )
+    ]
 
 
 @router.post("/workspaces/{workspace_id}/projects", status_code=201)
@@ -247,4 +294,12 @@ def create_project(workspace_id: str, body: Name, user=Depends(current_user), db
 @router.get("/organizations/{org_id}/audit")
 def audit_events(org_id: str, user=Depends(current_user), db=Depends(get_db)):
     authorize(db, user, org_id, "admin")
-    return [{"action": e.action, "subject": e.subject, "at": e.at} for e in db.scalars(select(AuditEvent).where(AuditEvent.org_id == org_id).order_by(AuditEvent.at.desc()).limit(100))]
+    return [
+        {"action": e.action, "subject": e.subject, "at": e.at}
+        for e in db.scalars(
+            select(AuditEvent)
+            .where(AuditEvent.org_id == org_id)
+            .order_by(AuditEvent.at.desc())
+            .limit(100)
+        )
+    ]

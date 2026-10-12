@@ -19,7 +19,9 @@ class ExecutionBackend(Protocol):
 
 
 def docker_command(name, image):
-    if not re.fullmatch(r"preflight-sandbox:0\.1\.0|[a-zA-Z0-9./_-]+@sha256:[a-f0-9]{64}", image):
+    if not re.fullmatch(
+        r"preflight-sandbox:0\.1\.0|[a-zA-Z0-9./_-]+@sha256:[a-f0-9]{64}|sha256:[a-f0-9]{64}", image
+    ):
         raise InfrastructureFailure("Operator must pin the native runner image")
     return [
         "docker",
@@ -59,13 +61,25 @@ class DockerBackend:
         name = "preflight-" + uuid.uuid4().hex
         process = None
         try:
+            deadline = time.monotonic() + timeout
+            # Validate the operator reference before inspection. Resolve a mutable
+            # development tag once, then execute the immutable local OCI image ID.
+            docker_command(name, self.image)
+            inspected = subprocess.run(
+                ["docker", "image", "inspect", "--format", "{{.Id}}", self.image],
+                capture_output=True,
+                timeout=min(10, timeout),
+                check=True,
+            )
+            image_id = inspected.stdout.decode().strip()
+            if not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id):
+                raise InfrastructureFailure("Invalid native image identity")
             process = subprocess.Popen(
-                docker_command(name, self.image),
+                docker_command(name, image_id),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            deadline = time.monotonic() + timeout
             payload = json.dumps({"scenario_id": scenario_id, "mode": mode, "seed": seed}).encode()
             while True:
                 if cancelled and cancelled():
@@ -88,13 +102,20 @@ class DockerBackend:
             result = json.loads(output)
             if not isinstance(result, dict) or "assessment" not in result:
                 raise InfrastructureFailure("Invalid runner output")
+            result["sandbox"] = {
+                "backend": "docker",
+                "configured_image": self.image,
+                "image_id": image_id,
+                "network": "none",
+                "non_root_uid": 10001,
+            }
             return result
         except subprocess.TimeoutExpired:
             if process:
                 process.kill()
                 process.communicate()
             raise InfrastructureFailure("Sandbox execution deadline exceeded")
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, subprocess.CalledProcessError) as exc:
             raise InfrastructureFailure("Sandbox infrastructure error") from exc
         finally:
             subprocess.run(

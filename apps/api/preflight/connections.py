@@ -67,6 +67,7 @@ def execute_connected(
     secret = reveal(db, run.project_id, version.config.get("credential_id"))
     scenario = next(s for s in SCENARIOS if s["id"] == scenario_id)
     from .telemetry import identifiers
+
     inputs = {
         "telemetry": identifiers(),
         "scenario_id": scenario_id,

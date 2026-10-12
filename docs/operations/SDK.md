@@ -20,7 +20,7 @@ client.request("POST", f"/runs/{run['id']}/execute", {})
 print(client.run(run["id"])["summary"])
 ```
 
-For connected agents, use `client.credential(workspace_id, name, secret)` and `client.register_connection(project_id, name, endpoint, framework, credential_id)`. Secret values are protected server-side; responses contain only reference metadata. Registering a gateway requires operator-origin authorization. The SDK gateway exposes actual health/invoke routes with bounded execution and optional bearer authentication. See packages/python-sdk/examples and [connection contracts](../architecture/AGENT-CONNECTIONS.md).
+For connected agents, use `client.credential(workspace_id, name, secret)` and `client.register_connection(project_id, name, endpoint, framework, credential_id)`. Secret values are protected server-side; responses contain only reference metadata. Registering a gateway requires operator-origin authorization. The SDK gateway exposes actual health/invoke routes with bounded execution and optional bearer authentication. See examples/agents and [connection contracts](../architecture/AGENT-CONNECTIONS.md).
 
 Actual LangGraph 1.2.14, CrewAI 1.15.27 and OpenAI Agents SDK 0.23.1 examples execute offline against the installed frameworks. Hash-locked isolated environments and scripts/framework_smoke.py verify compatible invocation and normalization. Accessible tool events/usage vary by framework; no hidden reasoning is captured. These tests do not establish hosted-model or Ollama execution. Connect those providers through an explicitly configured gateway; they are never silently replaced by a mock.
 

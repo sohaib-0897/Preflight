@@ -18,7 +18,9 @@ def client(app):
 
 
 def register(c, email="owner@example.test"):
-    r = c.post("/api/v1/auth/register", json={"email": email, "password": "synthetic-test-passphrase"})
+    r = c.post(
+        "/api/v1/auth/register", json={"email": email, "password": "synthetic-test-passphrase"}
+    )
     assert r.status_code == 201, r.text
     c.headers["x-csrf-token"] = r.json()["csrf_token"]
     return r.json()
@@ -27,4 +29,6 @@ def register(c, email="owner@example.test"):
 def setup_project(c):
     register(c)
     workspace = c.get("/api/v1/workspaces").json()[0]
-    return c.post(f'/api/v1/workspaces/{workspace["id"]}/projects', json={"name": "Refund service"}).json()
+    return c.post(
+        f"/api/v1/workspaces/{workspace['id']}/projects", json={"name": "Refund service"}
+    ).json()

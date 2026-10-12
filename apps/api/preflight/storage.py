@@ -13,7 +13,9 @@ class ArtifactStore(Protocol):
 
 class LocalStore:
     def __init__(self, root=None):
-        self.root = Path(root or os.environ.get("PREFLIGHT_ARTIFACT_ROOT", ".local/artifacts")).resolve()
+        self.root = Path(
+            root or os.environ.get("PREFLIGHT_ARTIFACT_ROOT", ".local/artifacts")
+        ).resolve()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     def path(self, key):
@@ -22,9 +24,12 @@ class LocalStore:
         return self.root / key
 
     def put(self, data):
-        if len(data) > 16*1024*1024:
+        if len(data) > 16 * 1024 * 1024:
             raise ValueError("Artifact exceeds 16 MiB")
-        if sum(p.stat().st_size for p in self.root.iterdir() if p.is_file()) + len(data) > 64*1024*1024:
+        if (
+            sum(p.stat().st_size for p in self.root.iterdir() if p.is_file()) + len(data)
+            > 64 * 1024 * 1024
+        ):
             raise ValueError("Local artifact quota exceeded")
         key = str(uuid.uuid4())
         handle, temp = tempfile.mkstemp(dir=self.root, prefix=".pending-")
@@ -37,7 +42,12 @@ class LocalStore:
         finally:
             if os.path.exists(temp):
                 os.unlink(temp)
-        return {"key": key, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "media_type": "application/json"}
+        return {
+            "key": key,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "size": len(data),
+            "media_type": "application/json",
+        }
 
     def get(self, key):
         path = self.path(key)

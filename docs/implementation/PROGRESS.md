@@ -1,3 +1,42 @@
+# Platform phase 11 — final verification checkpoint
+
+Completed repository-wide Python formatting/lint without disabling checks, targeted
+Mypy for SDK/adapters/metrics/security/telemetry, installed SDK wheel verification,
+actual framework/official smoke reruns, full available backend/browser checks,
+Redis queue verification and dependency audits. CI now enforces static checks,
+wheel invocation, all live Docker tests and every PR release gate. Main pushes and
+PRs remain verified; duplicate branch-push runs are avoided. Sandbox Python patch
+is 3.12.15; image references resolve once to an immutable inspected OCI ID, recorded
+in results and asserted by the live tests. No isolation restriction was removed.
+
+Local: 76 Python tests excluding the daemon-inaccessible suite; all ten desktop/mobile
+Chromium journeys, four Vitest tests, legacy frontend checks, production Next build,
+pip check, Ruff and targeted Mypy pass. Actual installed wheel gateway passes;
+three frameworks each invoke eight scenarios; official pass/fail and AgentDojo
+injection cases execute upstream scoring without outbound connections. Actual
+private Redis 8.0.5 queue persists 32 attempts, rejects duplicate enqueue and
+honors cancellation. Fifteen local Docker checks return prerequisite errors for
+permission denied, not skips/passes. Compose configuration validates.
+
+Dependency audits: core Python and both npm locks have no returned known advisories;
+LangGraph/OpenAI Agents/AgentDojo isolated environments likewise. CrewAI ChromaDB
+and tau2's constrained LiteLLM have unresolved advisory findings; see
+security/DEPENDENCIES.md. These optional findings are not hidden by green CI.
+Full async service conversion, general model/official-suite execution, stronger
+arbitrary-code isolation and optional external storage/judging remain incomplete.
+
+Latest fully verified remote checkpoint:
+2ca10e708057f827d4e47752b582be3e12307838,
+https://github.com/sohaib-0897/Preflight/actions/runs/38215112138 SUCCESS, all seven jobs:
+89 Python including 15 live Docker, ten Next Chromium and two Compose Chromium
+journeys, actual PostgreSQL migrations/persistence, Redis/native Docker queues,
+three framework and both official integrations. Phase 11 remote verification is
+pending the checkpoint push; do not infer local Docker success.
+
+# Historical milestone log
+
+Earlier pending/blocker statements below describe their checkpoints and are superseded by the current verification record.
+
 # Platform phase 10 — reports, onboarding and current documentation
 
 Implemented schema-versioned report identity/provenance, full assessment and human

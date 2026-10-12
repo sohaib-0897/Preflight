@@ -24,6 +24,7 @@ async def main():
     from preflight_adapters import AgentOutput
     from preflight_eval.connected import verify_response
     from preflight_eval import SCENARIOS
+
     framework = sys.argv[1]
     module = importlib.import_module(
         {

@@ -16,3 +16,5 @@ test-results/
 *.tsbuildinfo
 
 *.egg-info/
+
+packages/python-sdk/build/

@@ -1,7 +1,17 @@
 import os
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import create_engine, event, ForeignKey, String, Text, JSON, Integer, Float, UniqueConstraint
+from sqlalchemy import (
+    create_engine,
+    event,
+    ForeignKey,
+    String,
+    Text,
+    JSON,
+    Integer,
+    Float,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
@@ -149,13 +159,18 @@ class HumanReview(Base):
 
 # Immutable evidence tables share a payload but retain relational parent constraints.
 def evidence_table(name, parent, parent_table):
-    return type(name, (Base,), {
-        "__tablename__": name,
-        "id": mapped_column(String(36), primary_key=True, default=uid),
-        parent: mapped_column(String(36), ForeignKey(parent_table + ".id"), index=True),
-        "payload": mapped_column(JSON, nullable=False),
-        "created_at": mapped_column(String, default=now),
-    })
+    return type(
+        name,
+        (Base,),
+        {
+            "__tablename__": name,
+            "id": mapped_column(String(36), primary_key=True, default=uid),
+            parent: mapped_column(String(36), ForeignKey(parent_table + ".id"), index=True),
+            "payload": mapped_column(JSON, nullable=False),
+            "created_at": mapped_column(String, default=now),
+        },
+    )
+
 
 TraceEvent = evidence_table("trace_events", "attempt_id", "scenario_attempts")
 ToolCall = evidence_table("tool_calls", "attempt_id", "scenario_attempts")
@@ -214,6 +229,7 @@ class ReviewAssignment(Base):
 class Database:
     async def readiness(self):
         from sqlalchemy import text
+
         async with self.async_sessions() as session:
             return await session.scalar(text("SELECT 1"))
 
@@ -222,16 +238,27 @@ class Database:
         if url.startswith("sqlite"):
             os.makedirs(".local", mode=0o700, exist_ok=True)
             os.chmod(".local", 0o700)
-        self.engine = create_engine(url, connect_args={"check_same_thread": False} if url.startswith("sqlite") else {}, pool_pre_ping=True)
+        self.engine = create_engine(
+            url,
+            connect_args={"check_same_thread": False} if url.startswith("sqlite") else {},
+            pool_pre_ping=True,
+        )
         if url.startswith("sqlite"):
+
             @event.listens_for(self.engine, "connect")
             def pragmas(connection, _):
                 connection.execute("PRAGMA foreign_keys=ON")
                 connection.execute("PRAGMA busy_timeout=10000")
+
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
         from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
         from sqlalchemy.pool import NullPool
-        async_url = url.replace("sqlite://", "sqlite+aiosqlite://", 1) if url.startswith("sqlite://") else url
+
+        async_url = (
+            url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+            if url.startswith("sqlite://")
+            else url
+        )
         # NullPool supports CLI/tests using independent event loops without sharing driver connections.
         self.async_engine = create_async_engine(async_url, poolclass=NullPool)
         self.async_sessions = async_sessionmaker(self.async_engine, expire_on_commit=False)

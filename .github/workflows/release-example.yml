@@ -1,7 +1,6 @@
 name: Preflight release gate
 on:
   pull_request:
-    paths: ['benchmarks/custom/candidate.json', 'packages/**', 'scripts/demo.py']
 permissions: {contents: read}
 jobs:
   release-gate:
@@ -16,4 +15,4 @@ jobs:
           python scripts/demo.py --mode "$mode" --output .local/release-report.json
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: release-evidence, path: .local/release-report.json}
+        with: {name: release-evidence, include-hidden-files: true, path: .local/release-report.json}

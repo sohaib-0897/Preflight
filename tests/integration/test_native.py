@@ -35,9 +35,9 @@ def test_timeout_recovery():
 
 
 def test_ground_truth_and_unknowns():
-    assert structured_compare({"value": 1.01}, {"value": 1}, {"value": .02})["status"] == "PASSED"
+    assert structured_compare({"value": 1.01}, {"value": 1}, {"value": 0.02})["status"] == "PASSED"
     assert structured_compare({"value": True}, {"value": 1})["status"] == "FAILED"
     assert factual_verify([{"subject": "unknown", "value": 99}])["unverifiable"] == 1
-    assert confidence_assessment(.8)["status"] == "INCONCLUSIVE"
+    assert confidence_assessment(0.8)["status"] == "INCONCLUSIVE"
     with pytest.raises(ValueError):
-        confidence_assessment(float('nan'))
+        confidence_assessment(float("nan"))

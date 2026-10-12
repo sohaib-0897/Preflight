@@ -1,4 +1,4 @@
-FROM python:3.12.12-slim
+FROM python:3.12.15-slim
 WORKDIR /runner
 COPY packages /runner/packages
 COPY scripts/sandbox_runner.py /runner/runner.py

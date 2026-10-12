@@ -72,4 +72,6 @@ Local Codex cannot access this host's Docker socket. Actual container, PostgreSQ
 
 Open `/docs` or `/openapi.json` for the generated API contract. Set up TLS and secure cookies before nonlocal exposure. This is a developer evaluation platform, not a production security certification.
 
+[Dependency audit and optional upstream risks](docs/security/DEPENDENCIES.md).
+
 MIT licensed application. Bundled services and optional benchmarks retain their own licenses. [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md).
