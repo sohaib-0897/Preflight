@@ -25,7 +25,7 @@ security/DEPENDENCIES.md. These optional findings are not hidden by green CI.
 Full async service conversion, general model/official-suite execution, stronger
 arbitrary-code isolation and optional external storage/judging remain incomplete.
 
-Latest fully verified remote checkpoint:
+Previous fully verified remote checkpoint:
 2ca10e708057f827d4e47752b582be3e12307838,
 https://github.com/sohaib-0897/Preflight/actions/runs/38215112138 SUCCESS, all seven jobs:
 89 Python including 15 live Docker, ten Next Chromium and two Compose Chromium
