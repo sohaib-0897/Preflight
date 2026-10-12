@@ -5,7 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build:offline": "tsc -p tsconfig.build.json",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test -c playwright.next.config.ts",
     "test:web": "node --test tests/e2e/frontend.test.mjs"
   },
   "devDependencies": {

@@ -76,7 +76,7 @@ jobs:
       - run: PREFLIGHT_API_ORIGIN=http://127.0.0.1:18000 NEXT_TELEMETRY_DISABLED=1 npm --prefix apps/web run build
       - run: npm --prefix apps/web test
       - run: npx playwright install --with-deps chrome
-      - run: npx playwright test -c playwright.next.config.ts
+      - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: next-browser-evidence, path: 'test-results/'}

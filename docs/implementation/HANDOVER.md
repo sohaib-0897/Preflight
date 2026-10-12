@@ -2,9 +2,9 @@
 
 Repository: https://github.com/sohaib-0897/Preflight · branch main.
 Local path: /home/sohaib/Desktop/Preflight.
-Latest verified remote checkpoint: 07c68dc63fa647f8ef438cbdf79ef8bd4e4e0ef5,
+Verified core implementation checkpoint: 07c68dc63fa647f8ef438cbdf79ef8bd4e4e0ef5,
 https://github.com/sohaib-0897/Preflight/actions/runs/38216348545 (all seven jobs SUCCESS).
-Phase 11 implementation checkpoint verified; the subsequent documentation confirmation preserves these code results.
+Phase 11 core implementation checkpoint verified. Subsequent documentation and browser-command maintenance preserve its supported behavior. The standard npm run test:e2e command selects Next; Compose browser checks remain separate.
 
 ## Phase completion matrix
 

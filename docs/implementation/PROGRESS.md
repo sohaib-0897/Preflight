@@ -1,3 +1,11 @@
+# Final QA command follow-up
+
+The root npm test:e2e command now selects the maintained Next browser configuration.
+The prior default collected Next and Compose tests against the compatibility host.
+The corrected command executed all ten desktop/mobile tests successfully (.local/final-default-browser.log). CI now invokes the same standard npm command. All ten Next tests remain required; Compose retains its separate actual stack CI
+verifier. No failing scenario or security rule was removed. The underlying phase 11
+code checkpoint passed all seven jobs in Actions 38216348545.
+
 # Platform phase 11 — final verification checkpoint
 
 Completed repository-wide Python formatting/lint without disabling checks, targeted
