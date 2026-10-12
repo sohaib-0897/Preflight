@@ -1,1 +1,4 @@
-{"mode":"accurate","purpose":"Change mode to regressed in a pull request to demonstrate a failing release check."}
+{
+  "mode": "regressed",
+  "purpose": "Change mode to regressed in a pull request to demonstrate a failing release check."
+}
