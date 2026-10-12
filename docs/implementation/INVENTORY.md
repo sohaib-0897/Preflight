@@ -1,6 +1,6 @@
 # Current evidence-based implementation inventory
 
-Updated after phases 1–10 and local phase 11 verification. Baseline was main
+Updated after phases 1–10 and local and successful remote phase 11 verification. Baseline was main
 08f96d55ea864af30198dc67965afe23ad22ec43; existing functionality/history/data was
 preserved. See HANDOVER.md's phase matrix and VERIFICATION.md's exact evidence.
 

@@ -32,20 +32,20 @@ Latest fully verified remote checkpoint:
 https://github.com/sohaib-0897/Preflight/actions/runs/38215112138 SUCCESS, all seven jobs:
 89 Python including 15 live Docker, ten Next Chromium and two Compose Chromium
 journeys, actual PostgreSQL migrations/persistence, Redis/native Docker queues,
-three framework and both official integrations. Phase 11 remote verification is
-pending the checkpoint push; do not infer local Docker success.
+three framework and both official integrations. Phase 11 remote verification now passed: 07c68dc63fa647f8ef438cbdf79ef8bd4e4e0ef5,
+https://github.com/sohaib-0897/Preflight/actions/runs/38216348545, all seven jobs SUCCESS. Actual results: 91 Python tests including fifteen live Docker checks with immutable image identity; ten Next and two Compose Chromium journeys; SDK wheel/static checks, PostgreSQL migrations, Redis/native Docker execution and both official smoke integrations. Logs/artifacts are .local/final-ci.log and .local/final-ci-artifacts. Local Docker access remains denied.
 
 ## Executed checks and evidence
 
 | Check | Observed status | Evidence |
 |---|---|---|
 | Backend/tenant/auth/worker/scoring/report unit and integration | 76 passed locally | .local/final-pytest.log |
-| Live Docker isolation | BLOCKED locally; 15 passed at remote phase 10 | .local/final-local-docker-tests.log; Actions 38215112138 |
-| Immutable OCI identity | Unit contract passed; added live assertions pending phase 11 CI | tests/security/test_image_identity.py; test_docker_live.py |
+| Live Docker isolation | BLOCKED locally; 15 passed at remote phase 11 | .local/final-local-docker-tests.log; Actions 38216348545 |
+| Immutable OCI identity | Unit contract passed; actual live assertions passed in phase 11 CI | tests/security/test_image_identity.py; test_docker_live.py |
 | Production Next build and strict TS | Passed | .local/final-next-build.log |
 | Next desktop/mobile browser + axe/keyboard | 10 passed | .local/final-browser.log; test-results/* screenshots |
 | React component tests | 4 passed | .local/final-vitest.log |
-| Compose browser/PG/Redis/worker | 2 journeys passed remotely at phase 10 | Actions 38215112138, native-evidence |
+| Compose browser/PG/Redis/worker | 2 journeys passed remotely at phase 11 | Actions 38216348545, native-evidence |
 | Real isolated Redis/ARQ | 32 persisted attempts; cancellation/duplicate routing passed | .local/final-queue.log |
 | SDK wheel installation/invocation | Passed in fresh wheel-install environment | .local/final-sdk-build.log; scripts/verify_sdk.py |
 | LangGraph/CrewAI/OpenAI Agents | 8 actual invocations per installed framework | .local/final-framework-smoke.log |
